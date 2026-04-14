@@ -11,8 +11,8 @@ import Nav from './Componets/Nav';
 import Dashboard from './Pages/Dashboard';
 import DashboardAdmin from './Pages/DasboaradAdmi';
 import Formulario from './Pages/Formullario';
-
-import User from './Pages/User';
+import User from './Pages/Users';
+import CentroCostes from './Pages/CentroCoste';
 import { Form } from 'lucide-react';
 import { SocketProvider } from './Constext/SocketContext';
 import { Outlet } from 'react-router-dom';
@@ -52,8 +52,9 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/dashboard-admin" element={<DashboardAdmin />} />
               <Route path='/Formulario' element={<Formulario />} />
+              <Route path='/usuarios' element={<User />} />
 
-              <Route path='/Usuarios' element={<User />} />
+              <Route path='/centro-costes' element={<CentroCostes />} />
               <Route path='/Inventario' element={<Inventario />} />
               <Route path='/backup' element={<BackupDatabase />} />
             </Route>

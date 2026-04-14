@@ -32,13 +32,6 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
     const [localColumna, setLocalColumna] = useState(filtrosActuales.columna || 'nombres');
     const [localGerencia, setLocalGerencia] = useState(filtrosActuales.gerencia || '');
 
-    const [isUserorGerencia, setIsUserorGerencia] = useState(false);
-
-    const manejarCambio = () => {
-        // Enviamos el valor actual al Padre
-        alSeleccionar(isUserorGerencia);
-    };
-
     useEffect(() => {
         if (filterModalOpen) {
             setLocalBusqueda(filtrosActuales.busqueda || '');
@@ -250,14 +243,8 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
                             <button
                                 onClick={() => {
                                     setFilterModalOpen(true);
-                                    manejarCambio();
                                 }}
-                                disabled={!isUserorGerencia}
-                                className={`ml-4 p-2 rounded-2xl bg-white shadow-sm text-slate-600 transition-all flex items-center gap-2 text-xs font-semibold
-                ${isUserorGerencia
-                                        ? 'opacity-100 hover:bg-slate-100 hover:text-blue-600'
-                                        : 'opacity-30 cursor-not-allowed'}
-            `}
+                                className={`ml-4 p-2 rounded-2xl bg-white shadow-sm text-slate-600 transition-all flex items-center gap-2 text-xs font-semibold opacity-100 hover:bg-slate-100 hover:text-blue-600`}
                             >
                                 <Filter size={16} />
                                 <span className="max-xl:hidden">Filtros</span>
@@ -266,12 +253,7 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
                             {/* Botón Nuevo Usuario */}
                             <button
                                 onClick={() => setCreateModalOpen(true)}
-                                disabled={!isUserorGerencia}
-                                className={`p-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 transition-all gap-2 text-xs font-semibold
-                ${isUserorGerencia
-                                        ? 'opacity-100 hover:bg-blue-700'
-                                        : 'opacity-30 cursor-not-allowed'}
-            `}
+                                className={`p-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 transition-all gap-2 text-xs font-semibold opacity-100 hover:bg-blue-700`}
                             >
                                 <Plus size={16} strokeWidth={3} />
                                 <span className="max-xl:hidden">Nuevo Usuario</span>
@@ -279,31 +261,6 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
 
                         </div>
                     )}
-                    <div className='flex gap-2 ml-auto justify-end items-end -mb-8 z-2' >
-                        <button
-                            onClick={() => {
-
-                                setIsUserorGerencia(true);
-                                manejarCambio();
-
-                            }}
-
-
-                            className='p-2 px-4 rounded-2xl  bg-white/50 backdrop-blur-md shadow-[4px_0_4px_0px_rgba(0,0,0,0.1)] text-slate-600 rounded-b-none  hover:bg-slate-100 hover:text-blue-600 transition-colors flex items-center gap-2 text-xs font-semibold'>
-                            <User size={16} />
-                            Usuarios
-                        </button>
-                        <button
-                            onClick={() => {
-                                setIsUserorGerencia(false);
-                                manejarCambio(true);
-                            }}
-
-                            className='p-2 px-4 rounded-2xl bg-white/50 backdrop-blur-md shadow-[4px_0_4px_0px_rgba(0,0,0,0.1)] text-slate-600 rounded-b-none  hover:bg-slate-100 hover:text-blue-600 transition-colors flex items-center gap-2 text-xs font-semibold'>
-                            <Building2 size={16} />
-                            Gerencias
-                        </button>
-                    </div>
                     <div className='flex justify-center items-center ml-auto gap-2'>
                         {[...Array(Math.min(totalPages, 5))].map((_, i) => (
                             <div key={i} className={`size-2 rounded-full transition-all ${currentPage === i + 1 ? 'bg-blue-600 size-3' : 'bg-gray-300'}`}></div>
@@ -315,22 +272,10 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
                     <table className="w-full text-left text-sm custom-scrollbar border-collapse">
                         <thead className="bg-slate-50/50  z-20 text-slate-500 uppercase text-[10px] font-bold sticky top-0 z-10">
                             <tr className="border-b border-slate-100">
-                                {isUserorGerencia ? (
-                                    <>
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80">Perfil</th>
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80">Gerencia</th>
                                         <th className="px-6 py-4 text-center backdrop-blur-sm bg-slate-50/80">Rol</th>
                                         <th className="px-6 py-4 text-right backdrop-blur-sm bg-slate-50/80">Acciones</th>
-                                    </>
-                                ) : (
-                                    <>
-                                        <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Centro de costo</th>
-                                        <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Gerencia</th>
-
-                                        <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Presupuesto</th>
-                                        <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Total gastado</th>
-                                    </>
-                                )}
 
                             </tr>
                         </thead>
@@ -348,7 +293,7 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
                                         ))}
                                     </tr>
                                 ))
-                            ) : (data && data.length > 0 && isUserorGerencia === true) ? (
+                            ) : (data && data.length > 0) ? (
                                 data.map((row, i) => (
                                     <tr key={row.id_solicitud || i} className="hover:bg-slate-50/50 transition-colors animate-in fade-in duration-300">
                                         <td className="px-6 py-4 whitespace-nowrap group">
@@ -417,52 +362,6 @@ const TablaUsuarios = ({ data = [], alSeleccionar, loading: apiLoading, currentP
                                         </td>
                                     </tr>
                                 ))
-                            ) : (GerenciasPresupuesto.length > 0 && isUserorGerencia === false) ? (
-                                <>
-
-
-                                    {GerenciasPresupuesto.map((gerencia) => (
-                                        <tr
-                                            key={gerencia.id_gerencia}
-                                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors duration-200 group"
-                                        >
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <span className="text-blue-500 font-bold mr-1.5 opacity-70 group-hover:opacity-100">#</span>
-                                                    <span className="text-slate-700 font-medium">{gerencia.codigo_centro}</span>
-                                                </div>
-                                            </td>
-
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-semibold text-slate-800 truncate max-w-[200px]" title={gerencia.nombre_gerencia}>
-                                                    {gerencia.nombre_gerencia}
-                                                </div>
-                                            </td>
-
-                                            <td className="px-6 py-4 text-right">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-600">
-                                                    ${Number(gerencia.presupuesto_asignado).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex flex-col items-end">
-                                                    <span className={`text-sm font-bold ${Number(gerencia.total_gastado) > Number(gerencia.presupuesto_asignado) ? 'text-red-500' : 'text-slate-600'}`}>
-                                                        ${Number(gerencia.total_gastado).toLocaleString('de-DE', { minimumFractionDigits: 2 })}
-                                                    </span>
-                                                    {/* Barra de progreso visual rápida */}
-                                                    <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full ${Number(gerencia.total_gastado) > Number(gerencia.presupuesto_asignado) ? 'bg-red-400' : 'bg-blue-400'}`}
-                                                            style={{ width: `${Math.min((gerencia.total_gastado / gerencia.presupuesto_asignado) * 100, 100)}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-
-                                </>
                             ) : (
                                 <tr >
                                     <td colSpan="6" className="px-6 py-10 text-center text-slate-400">No hay solicitudes disponibles</td>

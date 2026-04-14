@@ -1,41 +1,47 @@
 // sidebarConfig.js
 import Logo from "../logo.jsx"
 import { useAuth } from '../../Constext/AuthToken';
+import { HandCoins, Users, Building2, Package, Database, } from 'lucide-react';
 // Nota: Reemplaza las rutas (href) y los paths SVG (figura) con tus valores reales.
 export const sidebarLinks = [
     {
         id: 1,
         text: 'Peticion a Compra',
         href: '/dashboard-admin',
-        iconPath: '<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />'
+        iconPath: <HandCoins className="size-5 stroke-1.5" />
     },
     {
         id: 1,
         text: 'Peticion a Compra',
         href: '/dashboard',
-        iconPath: '<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" /><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />'
+        iconPath: <HandCoins className="size-5 stroke-1.5" />
     },
     {
         id: 2,
         text: 'Usuarios',
         href: '/usuarios',
-        iconPath: '<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />'
+        iconPath: <Users className="size-5 stroke-1.5" />
+    },
+    {
+        id: 2,
+        text: 'Centro de costes',
+        href: '/centro-costes',
+        iconPath: <Building2 className="size-5 stroke-1.5" />
     },
 
     {
         id: 3,
         text: 'Inventario',
         href: '/inventario',
-        iconPath: '<path d="M12 22V12"/><path d="M20.27 18.27 22 20"/><path d="M21 10.498V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l.98-.559"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/><circle cx="18.5" cy="16.5" r="2.5"/>'
+        iconPath: <Package className="size-5 stroke-1.5" />
     },
     {
         id: 4,
         text: 'Respaldos DB',
         href: '/backup',
-        iconPath: '<path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M21 5c0 1.66-4 3-9 3s-9-1.34-9-3s4-3 9-3s9 1.34 9 3z"/>'
+        iconPath: <Database className="size-5 stroke-1.5" />
     }
-
-];// Sidebar.jsx
+];
 
 import React, { useState } from 'react';
 import '../../assets/Style/Sidebar.css';
@@ -62,7 +68,7 @@ const Icono = ({ color, size, className, path }) => {
         />
     );
 };
-const IconsSiderbar = ({ isOpen, isActive, text, svg, href }) => {
+const IconsSiderbar = ({ isOpen, isActive, text, iconPath, href }) => {
     const baseClasses = `group relative flex items-center p-2 rounded-xl 
         transition-all duration-300 ease-in-out cursor-pointer w-full mb-1`;
 
@@ -74,7 +80,7 @@ const IconsSiderbar = ({ isOpen, isActive, text, svg, href }) => {
         <a href={href} className={`${baseClasses} ${activeClasses} ${!isOpen ? 'justify-center' : ''}`}>
             {/* Contenedor del Icono */}
             <div className={`flex items-center justify-center transition-all duration-300 ${isOpen ? 'mr-3' : 'w-full'}`}>
-                {svg}
+                {iconPath}
             </div>
 
             {/* Texto */}
@@ -161,7 +167,7 @@ const Sidebar = () => {
                                 text={link.text}
                                 href={link.href}
                                 isActive={currentPath === link.href}
-                                svg={<Icono size={20} path={link.iconPath} color="currentColor" />}
+                                iconPath={link.iconPath}
                             />
                         ))}
                 </nav>
