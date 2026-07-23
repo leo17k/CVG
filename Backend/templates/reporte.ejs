@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Solicitudes</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Helvetica:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Helvetica', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        .header {
+            background-color: #155dfc;
+            color: white;
+            padding: 30px 50px;
+            height: 100px;
+            box-sizing: border-box;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 25px;
+            font-weight: normal;
+        }
+
+        .header p {
+            margin: 5px 0 0 0;
+            font-size: 10px;
+        }
+
+        .content {
+            padding: 30px 50px;
+            page-break-after: always;
+        }
+
+        .content:last-child {
+            page-break-after: auto;
+        }
+
+        h2 {
+            color: #2c3e50;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid #155dfc;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+
+        th {
+            color: #2c3e50;
+            font-size: 12px;
+            text-align: left;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #155dfc;
+        }
+
+        td {
+            padding: 8px 0;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        /* Chart Section */
+        .chart-container {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 10px;
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .legend-badge {
+            background-color: #eaecf4;
+            color: #4e73df;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-left: 5px;
+            font-size: 9px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Page 1: Table -->
+    <div class="header">
+        <h1>REPORTE DE SOLICITUDE</h1>
+        <p>CVG CABELUM - SISTEMA DE GESTIÓN DE SOLICITUDES DE COMPRA Y VENTA</p>
+    </div>
+    <div class="content">
+        <h2>Resumen de Solicitudes</h2>
+        <hr>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Gerencia</th>
+                    <th>Resumen</th>
+                    <th class="text-right">Monto Estimado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% datos.forEach(function(item) { %>
+                    <tr>
+                        <td style="padding-left: 5px;">
+                            <%= item.id_solicitud %>
+                        </td>
+                        <td>
+                            <%= item.nombre_gerencia %>
+                        </td>
+                        <td>
+                            <%= item.resumen %>
+                        </td>
+                        <td class="text-right" style="padding-right: 5px;">
+                            <%= item.monto_estimado %> $
+                        </td>
+                    </tr>
+                    <% }); %>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Page 2: Charts and Stats -->
+    <div style="page-break-before: always;">
+        <div class="header">
+            <h1>REPORTE DE SOLICITUDES</h1>
+            <p>CVG CABELUM - SISTEMA DE GESTIÓN DE SOLICITUDES DE COMPRA Y VENTA</p>
+        </div>
+        <div class="content">
+            <h2>Porcentaje gastado por gerencia</h2>
+            <hr>
+
+            <div class="chart-container">
+                <svg width="200" height="200" viewBox="-100 -100 200 200" style="transform: rotate(-90deg);">
+                    <% 
+                    const colores = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796'];
+                    let obj = { cumulativePercent: 0 };
+                    datosGrafico.forEach(function(segmento, index) { 
+                        const valor = parseFloat(segmento.valor);
+                        if (valor === 100) {
+                            // Donut that handles 100%
+                    %>
+                            <circle cx="0" cy="0" r="66" fill="none" stroke="<%= colores[index % colores.length] %>" stroke-width="28" />
+                    <%
+                        } else if (valor > 0) {
+                            const startPercent = obj.cumulativePercent;
+                            const endPercent = obj.cumulativePercent + valor;
+                            obj.cumulativePercent = endPercent;
+
+                            const startX = Math.cos(2 * Math.PI * startPercent / 100);
+                            const startY = Math.sin(2 * Math.PI * startPercent / 100);
+                            const endX = Math.cos(2 * Math.PI * endPercent / 100);
+                            const endY = Math.sin(2 * Math.PI * endPercent / 100);
+                            const largeArcFlag = valor > 50 ? 1 : 0;
+                            const pathData = `M ${startX * 80} ${startY * 80} A 80 80 0 ${largeArcFlag} 1 ${endX * 80} ${endY * 80} L ${endX * 52} ${endY * 52} A 52 52 0 ${largeArcFlag} 0 ${startX * 52} ${startY * 52} Z`;
+                    %>
+                            <path d="<%= pathData %>" fill="<%= colores[index % colores.length] %>" stroke="white" stroke-width="1.5"></path>
+                    <% 
+                        }
+                    }); 
+                    %>
+                            <text x="0" y="-5" text-anchor="middle" fill="#5a5c69" font-size="14" font-weight="bold"
+                                transform="rotate(90)">TOTAL</text>
+                            <text x="0" y="15" text-anchor="middle" fill="#333" font-size="12"
+                                transform="rotate(90)">100%</text>
+                </svg>
+
+                <div class="legend">
+                    <% datosGrafico.forEach(function(segmento, index) { %>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background-color: #4e73df;"></span>
+                            <span>
+                                <%= segmento.etiqueta %>
+                            </span>
+                            <span class="legend-badge">
+                                <%= segmento.valor %>%
+                            </span>
+                        </div>
+                        <% }); %>
+                </div>
+            </div>
+
+            <div style="margin-top: 50px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Gerencia</th>
+                            <th>Monto</th>
+                            <th class="text-right">Porcentaje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% datosGrafico.forEach(function(item, index) { %>
+                            <tr>
+                                <td style="padding-left: 5px;">
+                                    <%= index + 1 %>
+                                </td>
+                                <td>
+                                    <%= item.etiqueta %>
+                                </td>
+                                <td>
+                                    <%= item.monto_real %> $
+                                </td>
+                                <td class="text-right" style="padding-right: 5px;">
+                                    <%= item.valor %> %
+                                </td>
+                            </tr>
+                            <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
