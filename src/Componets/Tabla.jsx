@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { cn } from '../utils';
+import { cn, getApiBaseUrl } from '../utils';
 
 const Tabla = ({ className }) => {
     const [data, setData] = useState([]);
@@ -12,7 +12,7 @@ const Tabla = ({ className }) => {
     useEffect(() => {
         const fetchSolicitudes = async () => {
             try {
-                const response = await fetch('http://localhost:5000/solicitudes', {
+                const response = await fetch(`${getApiBaseUrl()}/solicitudes`, {
                     method: 'GET',
                     credentials: 'include',
                 });

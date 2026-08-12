@@ -1,6 +1,12 @@
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+export function getApiBaseUrl() {
+    const protocol = window.location.protocol || 'http:';
+    const host = window.location.hostname || 'localhost';
+    return `${protocol}//${host}:5000`;
+}
+
 export function cn(...inputs) {
     return twMerge(clsx(inputs));
 }

@@ -85,17 +85,23 @@ export const logout = (req, res) => {
 };
 
 const getFrontendOrigin = (req) => {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host;
+    const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto || 'http';
+    const host = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
+
     const candidates = [
         process.env.FRONTEND_ORIGIN,
         req.headers.origin,
         req.headers.referer ? new URL(req.headers.referer).origin : null,
-        req.headers.host ? `http://${req.headers.host}` : null
+        host ? `${proto}://${host}` : null,
+        'http://192.168.10.7:5173'
     ];
 
     for (const value of candidates) {
         if (!value) continue;
         try {
-            const normalized = value.replace(/\/$/, '');
+            const normalized = String(value).replace(/\/$/, '');
             if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
                 return normalized;
             }
@@ -104,7 +110,7 @@ const getFrontendOrigin = (req) => {
         }
     }
 
-    return 'http://localhost:5173';
+    return 'http://192.168.10.7:5173';
 };
 
 // POST /auth/forgot-password
