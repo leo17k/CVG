@@ -84,6 +84,29 @@ export const logout = (req, res) => {
     });
 };
 
+const getFrontendOrigin = (req) => {
+    const candidates = [
+        process.env.FRONTEND_ORIGIN,
+        req.headers.origin,
+        req.headers.referer ? new URL(req.headers.referer).origin : null,
+        req.headers.host ? `http://${req.headers.host}` : null
+    ];
+
+    for (const value of candidates) {
+        if (!value) continue;
+        try {
+            const normalized = value.replace(/\/$/, '');
+            if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+                return normalized;
+            }
+        } catch (_err) {
+            // Ignorar valores inválidos.
+        }
+    }
+
+    return 'http://localhost:5173';
+};
+
 // POST /auth/forgot-password
 export const forgotPassword = async (req, res) => {
     try {
@@ -114,8 +137,9 @@ export const forgotPassword = async (req, res) => {
             [token, expires, user.id_usuario]
         );
 
-        // Link de restablecimiento (port 5173 es el del frontend)
-        const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+        // Link de restablecimiento tomando el origen real del navegador que hace la solicitud,
+        // pero con fallback a la configuración del entorno.
+        const frontendOrigin = getFrontendOrigin(req);
         const resetLink = `${frontendOrigin}/login?token=${token}`;
 
         let destEmail = user.email || 'esteysertorres2@gmail.com';
