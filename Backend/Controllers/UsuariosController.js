@@ -85,8 +85,8 @@ export const createUser = async (req, res) => {
     try {
         const { username, email, password, nombres, apellidos, id_rol, id_gerencia, telf, direccion, sexo, cedula } = req.body;
 
-        if (!username || !email || !password || !nombres || !apellidos || !id_rol || !id_gerencia || !telf || !direccion || !cedula) {
-            return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+        if (!username || !email || !password || !nombres || !apellidos || !id_rol || !id_gerencia || !cedula) {
+            return res.status(400).json({ error: 'Faltan campos obligatorios' });
         }
 
         if (Number(id_rol) === 1) {

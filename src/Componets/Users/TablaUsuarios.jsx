@@ -96,9 +96,7 @@ const TablaUsuarios = ({
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({});
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '', sexo: 'Masculino', direccion: '' });
-    const [isProcessingLocal, setIsProcessingLocal] = useState(false);
-    const [processSuccessMessage, setProcessSuccessMessage] = useState('');
+    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' });
     const [editErrors, setEditErrors] = useState({});
     const [createErrors, setCreateErrors] = useState({});
 
@@ -306,13 +304,11 @@ const TablaUsuarios = ({
         if (!createData.nombres?.trim()) errors.nombres = "El nombre es obligatorio";
         if (!createData.apellidos?.trim()) errors.apellidos = "El apellido es obligatorio";
         if (!createData.cedula?.trim()) errors.cedula = "La cédula es obligatoria";
-        if (!createData.telf?.trim()) errors.telf = "El teléfono es obligatorio";
         if (!createData.email?.trim()) {
             errors.email = "El correo electrónico es obligatorio";
         } else if (!validateEmail(createData.email)) {
             errors.email = "El formato de correo no es válido";
         }
-        if (!createData.direccion?.trim()) errors.direccion = "La dirección es obligatoria";
         if (!createData.username?.trim()) errors.username = "El nombre de usuario es obligatorio";
         if (!createData.password) {
             errors.password = "La contraseña es obligatoria";
@@ -329,25 +325,26 @@ const TablaUsuarios = ({
         }
 
         setCreateErrors({});
-        setIsProcessingLocal(true);
         try {
             const res = await fetch(`http://${window.location.hostname}:5000/usuarios`, {
                 method: 'POST', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createData)
             });
             const d = await res.json();
-            setTimeout(() => setProcessSuccessMessage(res.ok ? '¡Usuario creado con éxito!' : '¡Operación Fallida!'), 2500);
-            setTimeout(() => {
-                setIsProcessingLocal(false); setProcessSuccessMessage(''); setCreateModalOpen(false);
-                if (res.ok) {
-                    toast.success('Operación Finalizada — Usuario creado con éxito');
-                    setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino', direccion: '' });
-                    setCreateErrors({});
-                    onUserCreated?.();
-                }
-                else toast.error(`Operación Fallida — ${d.error}`);
-            }, 6000);
-        } catch { toast.error('Error interno al comunicar con el servidor'); setIsProcessingLocal(false); }
+
+            if (res.ok) {
+                toast.success('Usuario creado con éxito');
+                setCreateModalOpen(false);
+                setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' });
+                setCreateErrors({});
+                onUserCreated?.();
+                return;
+            }
+
+            toast.error(`Operación Fallida — ${d.error || 'No se pudo crear el usuario'}`);
+        } catch {
+            toast.error('Error interno al comunicar con el servidor');
+        }
     };
 
     // ── Render ──
@@ -586,31 +583,8 @@ const TablaUsuarios = ({
 
             {/* ── Create modal ── */}
             {createModalOpen && (
-                <Modal onClose={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino', direccion: '' }); }} contenido={
+                <Modal onClose={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' }); }} contenido={
                     <div className="flex relative flex-col gap-1 p-4 max-lg:overflow-auto">
-                        {isProcessingLocal && (
-                            <div className="fixed inset-0 z-[100] flex h-dvh flex-col items-center justify-center p-6 rounded-[32px] overflow-hidden">
-                                <div className="absolute inset-0 bg-white/60 backdrop-blur-md animate-in fade-in duration-500" />
-                                <div className="relative z-10 flex flex-col items-center text-center">
-                                    {processSuccessMessage ? (
-                                        <div className="flex flex-col items-center gap-6 animate-in zoom-in-90 duration-500">
-                                            {processSuccessMessage === '¡Operación Fallida!'
-                                                ? <XCircle className="w-14 h-14 text-rose-500" />
-                                                : <CheckCircle className="w-14 h-14 text-emerald-500" />}
-                                            <h3 className="text-2xl font-black text-slate-900">{processSuccessMessage}</h3>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center gap-6">
-                                            <div className="relative w-20 h-20 flex items-center justify-center">
-                                                <div className="absolute inset-0 border-4 border-slate-100 rounded-full" />
-                                                <div className="absolute inset-0 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                                            </div>
-                                            <span className="text-blue-600 font-bold animate-pulse text-lg">Procesando acción...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                         <div className="border-l-4 border-blue-500 pl-4 mb-1">
                             <h3 className="text-xl font-bold text-slate-800">Crear Nuevo Usuario</h3>
                             <p className="text-sm text-slate-500">Ingresa los datos para registrar un colaborador</p>
@@ -621,11 +595,6 @@ const TablaUsuarios = ({
                         </div>
                         <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
                             <Input label="Cédula" name="cedula" value={createData.cedula || ''} onChange={handleCreateChange} error={createErrors.cedula} />
-                            <Input label="Teléfono" name="telf" value={createData.telf || ''} onChange={handleCreateChange} error={createErrors.telf} />
-                        </div>
-                        <Input label="Correo Electrónico" name="email" value={createData.email || ''} onChange={handleCreateChange} error={createErrors.email} />
-                        <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
-                            <Input label="Dirección" name="direccion" value={createData.direccion || ''} onChange={handleCreateChange} error={createErrors.direccion} />
                             <Select
                                 label="Sexo"
                                 name="sexo"
@@ -647,8 +616,8 @@ const TablaUsuarios = ({
                                 }}
                                 error={createErrors.sexo}
                             />
-
                         </div>
+                        <Input label="Correo Electrónico" name="email" value={createData.email || ''} onChange={handleCreateChange} error={createErrors.email} />
                         <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
                             <Input label="Username" name="username" value={createData.username || ''} autoComplete="off" onChange={handleCreateChange} error={createErrors.username} />
                             <Input label="Contraseña" name="password" type="password" value={createData.password || ''} autoComplete="new-password" onChange={handleCreateChange} error={createErrors.password} />
@@ -656,7 +625,7 @@ const TablaUsuarios = ({
                         <Select label="Gerencia" required name="id_gerencia" value={createData.id_gerencia || ''} onChange={handleCreateChange} options={gerencias} error={createErrors.id_gerencia} />
                         <Select label="Rol del Sistema" required name="id_rol" value={createData.id_rol} options={roles} onChange={handleCreateChange} error={createErrors.id_rol} />
                         <div className="flex justify-end gap-3 mt-4">
-                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino', direccion: '' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
                             <button onClick={submitCreate} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-100 transition-all">
                                 Registrar Usuario
                             </button>
