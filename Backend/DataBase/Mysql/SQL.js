@@ -32,9 +32,6 @@ const sqlusuario = `
       u.nombres,
       u.avatar,
       u.apellidos,
-      u.direccion,
-      u.sexo,
-      u.telf,
       u.id_rol,
       u.activo,
       r.nombre_rol
@@ -45,8 +42,8 @@ const sqlusuario = `
 
 
 const insertUsuarioSQL = `
-        INSERT INTO usuarios (username, password, email, nombres, apellidos, telf, sexo, direccion, id_rol, id_gerencia, cedula, avatar)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO usuarios (username, password, email, nombres, apellidos, id_rol, id_gerencia, avatar)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 const insertProductosSQL = `
         INSERT INTO productos (codigo_producto, nombre, descripcion, precio, id_categoria, marca, tipo, imagen_url)
@@ -221,9 +218,6 @@ export const sqlUsuarios = `
     u.email, 
     u.nombres, 
     u.apellidos, 
-    u.direccion, 
-    u.sexo, 
-    u.telf, 
     u.id_rol, 
     u.avatar,
     u.id_gerencia, 

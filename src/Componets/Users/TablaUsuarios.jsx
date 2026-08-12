@@ -96,7 +96,7 @@ const TablaUsuarios = ({
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({});
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' });
+    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '' });
     const [editErrors, setEditErrors] = useState({});
     const [createErrors, setCreateErrors] = useState({});
 
@@ -119,7 +119,7 @@ const TablaUsuarios = ({
     const applyFilters = () => { setGerencia(tmpGerencia); setColumna(tmpColumna); setFilterModalOpen(false); };
     const clearFilters = () => { setSearch(''); setGerencia(''); setColumna('nombres'); setTmpGerencia(''); setTmpColumna('nombres'); setFilterModalOpen(false); };
 
-    const columnaLabel = { nombres: 'Nombre', cedula: 'Cédula', email: 'Correo', username: 'Usuario' };
+    const columnaLabel = { nombres: 'Nombre', email: 'Correo', username: 'Usuario' };
     const hasActiveFilters = gerencia || columna !== 'nombres';
 
     // Infinite scroll
@@ -303,7 +303,6 @@ const TablaUsuarios = ({
         const errors = {};
         if (!createData.nombres?.trim()) errors.nombres = "El nombre es obligatorio";
         if (!createData.apellidos?.trim()) errors.apellidos = "El apellido es obligatorio";
-        if (!createData.cedula?.trim()) errors.cedula = "La cédula es obligatoria";
         if (!createData.email?.trim()) {
             errors.email = "El correo electrónico es obligatorio";
         } else if (!validateEmail(createData.email)) {
@@ -335,7 +334,7 @@ const TablaUsuarios = ({
             if (res.ok) {
                 toast.success('Usuario creado con éxito');
                 setCreateModalOpen(false);
-                setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' });
+                setCreateData({ id_rol: 4, id_gerencia: '' });
                 setCreateErrors({});
                 onUserCreated?.();
                 return;
@@ -520,7 +519,7 @@ const TablaUsuarios = ({
                             <span className="inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-blue-50 text-blue-600">{selected.nombre_rol}</span>
                         </div>
                         <div className="w-full space-y-1 mb-6">
-                            {[['Gerencia', selected.nombre_gerencia], ['Cédula', selected.cedula], ['Teléfono', selected.telf], ['Estado', (selected.activo === undefined || selected.activo === 1 || selected.activo === true) ? 'Activo' : 'Inactivo']].map(([k, v]) => (
+                            {[['Gerencia', selected.nombre_gerencia], ['Estado', (selected.activo === undefined || selected.activo === 1 || selected.activo === true) ? 'Activo' : 'Inactivo']].map(([k, v]) => (
                                 <div key={k} className="flex justify-between items-center p-3 rounded-xl hover:bg-gray-50">
                                     <span className="text-sm font-medium text-gray-400">{k}</span>
                                     <span className={`text-sm font-semibold ${k === 'Estado' ? (v === 'Activo' ? 'text-green-600' : 'text-rose-500') : 'text-gray-700'}`}>{v || '—'}</span>
@@ -583,7 +582,7 @@ const TablaUsuarios = ({
 
             {/* ── Create modal ── */}
             {createModalOpen && (
-                <Modal onClose={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' }); }} contenido={
+                <Modal onClose={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '' }); }} contenido={
                     <div className="flex relative flex-col gap-1 p-4 max-lg:overflow-auto">
                         <div className="border-l-4 border-blue-500 pl-4 mb-1">
                             <h3 className="text-xl font-bold text-slate-800">Crear Nuevo Usuario</h3>
@@ -593,30 +592,6 @@ const TablaUsuarios = ({
                             <Input label="Nombres" name="nombres" value={createData.nombres || ''} onChange={handleCreateChange} error={createErrors.nombres} />
                             <Input label="Apellidos" name="apellidos" value={createData.apellidos || ''} onChange={handleCreateChange} error={createErrors.apellidos} />
                         </div>
-                        <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
-                            <Input label="Cédula" name="cedula" value={createData.cedula || ''} onChange={handleCreateChange} error={createErrors.cedula} />
-                            <Select
-                                label="Sexo"
-                                name="sexo"
-                                value={createData.sexo || 'Masculino'}
-                                options={[
-                                    { value: 'Masculino', label: 'Masculino' },
-                                    { value: 'Femenino', label: 'Femenino' },
-                                    { value: 'Otro', label: 'Otro' }
-                                ]}
-                                onChange={e => {
-                                    setCreateData(s => ({ ...s, sexo: e.target.value }));
-                                    if (createErrors.sexo) {
-                                        setCreateErrors(prev => {
-                                            const newErr = { ...prev };
-                                            delete newErr.sexo;
-                                            return newErr;
-                                        });
-                                    }
-                                }}
-                                error={createErrors.sexo}
-                            />
-                        </div>
                         <Input label="Correo Electrónico" name="email" value={createData.email || ''} onChange={handleCreateChange} error={createErrors.email} />
                         <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
                             <Input label="Username" name="username" value={createData.username || ''} autoComplete="off" onChange={handleCreateChange} error={createErrors.username} />
@@ -625,7 +600,7 @@ const TablaUsuarios = ({
                         <Select label="Gerencia" required name="id_gerencia" value={createData.id_gerencia || ''} onChange={handleCreateChange} options={gerencias} error={createErrors.id_gerencia} />
                         <Select label="Rol del Sistema" required name="id_rol" value={createData.id_rol} options={roles} onChange={handleCreateChange} error={createErrors.id_rol} />
                         <div className="flex justify-end gap-3 mt-4">
-                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', sexo: 'Masculino' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
                             <button onClick={submitCreate} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-100 transition-all">
                                 Registrar Usuario
                             </button>
@@ -656,7 +631,6 @@ const TablaUsuarios = ({
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
                                         { value: 'nombres',  label: 'Nombre'  },
-                                        { value: 'cedula',   label: 'Cédula'  },
                                         { value: 'email',    label: 'Correo'  },
                                         { value: 'username', label: 'Usuario' },
                                     ].map(op => (

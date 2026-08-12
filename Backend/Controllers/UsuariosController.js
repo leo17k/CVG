@@ -27,7 +27,7 @@ export const getUsers = async (req, res) => {
     }
 
     if (columna && busqueda) {
-        const camposPermitidos = ['nombres', 'apellidos', 'email', 'username', 'telf', 'cedula', 'id_usuario'];
+        const camposPermitidos = ['nombres', 'apellidos', 'email', 'username', 'id_usuario'];
         if (camposPermitidos.includes(columna)) {
             conditions.push(`u.${columna} LIKE ?`);
             params.push(`%${busqueda}%`);
@@ -83,9 +83,9 @@ export const getContext = async (req, res) => {
 // POST /usuarios
 export const createUser = async (req, res) => {
     try {
-        const { username, email, password, nombres, apellidos, id_rol, id_gerencia, telf, direccion, sexo, cedula } = req.body;
+        const { username, email, password, nombres, apellidos, id_rol, id_gerencia } = req.body;
 
-        if (!username || !email || !password || !nombres || !apellidos || !id_rol || !id_gerencia || !cedula) {
+        if (!username || !email || !password || !nombres || !apellidos || !id_rol || !id_gerencia) {
             return res.status(400).json({ error: 'Faltan campos obligatorios' });
         }
 
@@ -105,8 +105,7 @@ export const createUser = async (req, res) => {
         const avatarPadre = 'avatar-1.png';
         const valores = [
             username, hashedPassword, email, nombres, apellidos,
-            telf || null, sexo || 'Masculino', direccion || null,
-            id_rol, id_gerencia, cedula || '', avatarPadre
+            id_rol, id_gerencia, avatarPadre
         ];
 
         const [resultado] = await pool.query(insertUsuarioSQL, valores);
@@ -131,7 +130,7 @@ export const updateUser = async (req, res) => {
     }
 
     try {
-        const allowedFields = ['nombres', 'apellidos', 'email', 'id_rol', 'id_gerencia', 'telf', 'direccion', 'sexo', 'cedula', 'avatar', 'username', 'activo'];
+        const allowedFields = ['nombres', 'apellidos', 'email', 'id_rol', 'id_gerencia', 'avatar', 'username', 'activo'];
         const updates = [];
         const values  = [];
 
