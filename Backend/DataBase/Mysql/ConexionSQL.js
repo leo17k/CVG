@@ -1,13 +1,14 @@
 import mysql from "mysql2/promise";
 import picocolors from "picocolors";
-
+import dotenv from "dotenv";
+dotenv.config();
 const { red, green, bold, yellow, blueBright } = picocolors;
 export let statusconnectionsql = false
 const conexionDATA = {
-  host: 'localhost',
-  user: 'root',
-  database: 'cvg-p',
-  password: '',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASS,
   supportBigNumbers: true,
   bigNumberStrings: false,
   multipleStatements: true

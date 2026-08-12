@@ -130,6 +130,10 @@ export async function sendSolicitudToAccess(id_solicitud) {
       return { ok: false, reason: 'not-found' };
     }
     const s = rows[0];
+    if (s.id_estado !== 6 && s.estado_nombre !== 'Aprovadas') {
+      appendLog(`[AccessJobs] Solicitud ${id_solicitud} no exportada a Access porque su estado es ${s.estado_nombre} (id ${s.id_estado})`);
+      return { ok: false, reason: 'not-approved' };
+    }
     const typePrefix = s.tipo_solicitud === 'Compra' ? 'C' : 'S';
     const NReqCompra = `${typePrefix}-${s.id_solicitud}`;
 
@@ -162,8 +166,44 @@ export async function sendSolicitudToAccess(id_solicitud) {
     const prioridadRC = s.prioridad === 'Alta' ? 1 : (s.prioridad === 'Media' ? 2 : 3);
     const tipoRC = s.tipo_solicitud === 'Compra' ? 'CO' : 'SV';
 
-    const ccostoSql = ccostoIsNumeric ? `${num(s.id_gerencia, 300)}` : `'${esc(String(s.id_gerencia || 300))}'`;
-    const compradorSql = compradorIsNumeric ? `${num(s.id_solicitante, 6)}` : `'${esc(String(s.id_solicitante || 6))}'`;
+    let codigoCentro = null;
+    try {
+      const [ccRows] = await pool.query(
+        'SELECT codigo_centro FROM centro_costo WHERE id_gerencia = ? LIMIT 1',
+        [s.id_gerencia]
+      );
+      codigoCentro = ccRows[0]?.codigo_centro ?? null;
+    } catch (err) {
+      appendLog(`[AccessJobs] Error obteniendo codigo_centro para gerencia ${s.id_gerencia}: ${err.message || err}`);
+    }
+
+    let compradorValue = s.id_solicitante;
+    try {
+      const [histRows] = await pool.query(
+        `SELECT usuario_responsable FROM historial_estados
+         WHERE id_solicitud = ? AND estado_nuevo IN ('En Compras', 'Aprovadas')
+         ORDER BY fecha_cambio DESC
+         LIMIT 1`,
+        [s.id_solicitud]
+      );
+      const responsable = histRows[0]?.usuario_responsable;
+      if (responsable) {
+        if (/^\d+$/.test(String(responsable))) {
+          compradorValue = Number(responsable);
+        } else {
+          const [userRows] = await pool.query('SELECT id_usuario FROM usuarios WHERE username = ? LIMIT 1', [responsable]);
+          if (userRows && userRows.length) {
+            compradorValue = userRows[0].id_usuario;
+          }
+        }
+      }
+    } catch (err) {
+      appendLog(`[AccessJobs] Error obteniendo comprador desde historial de solicitud ${s.id_solicitud}: ${err.message || err}`);
+    }
+
+    const ccostoValue = codigoCentro !== null && codigoCentro !== undefined ? codigoCentro : s.id_gerencia;
+    const ccostoSql = ccostoIsNumeric ? `${num(ccostoValue, 300)}` : `'${esc(String(ccostoValue || 300))}'`;
+    const compradorSql = compradorIsNumeric ? `${num(compradorValue, 6)}` : `'${esc(String(compradorValue || 6))}'`;
     const codPriorSql = codPriorIsNumeric ? `${num(prioridadRC, 3)}` : `'${esc(String(prioridadRC))}'`;
 
     // Si ya existe: actualizar cabecera y reemplazar detalles

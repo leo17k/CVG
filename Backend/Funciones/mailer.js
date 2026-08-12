@@ -68,7 +68,9 @@ const getCommonAttachments = () => [
 /**
  * Send password reset email with a modern premium button/layout.
  */
-export const sendResetPasswordEmail = async (to, nombres, resetLink) => {
+export const sendResetPasswordEmail = async (to, nombres, username, resetLink) => {
+    const displayName = nombres || 'Usuario';
+    const displayUsername = username || 'usuario';
     const html = `
     <!DOCTYPE html>
     <html>
@@ -100,7 +102,8 @@ export const sendResetPasswordEmail = async (to, nombres, resetLink) => {
                 <h1>CVG CABELUM</h1>
             </div>
             <div class="content">
-                <p>Hola <strong>${nombres}</strong>,</p>
+                <p>Hola <strong>${displayName}</strong>,</p>
+                <p>Tu usuario asignado es: <strong>${displayUsername}</strong></p>
                 <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta de acceso al sistema de Gestión de Solicitudes (SCS).</p>
                 <p>Para continuar con el restablecimiento, por favor haz clic en el botón inferior:</p>
                 <div class="btn-container">

@@ -285,6 +285,7 @@ const Dashboard = () => {
 
         if (filtros.busqueda) url.searchParams.append('busqueda', filtros.busqueda);
         if (filtros.estado) url.searchParams.append('estado', filtros.estado);
+        if (filtros.tipo) url.searchParams.append('tipo', filtros.tipo);
         if (filtros.vista) url.searchParams.append('vista', filtros.vista);
         if (filtros.id_usuario) url.searchParams.append('id_usuario', filtros.id_usuario);
         if (filtros.id_gerencia) url.searchParams.append('id_gerencia', filtros.id_gerencia);

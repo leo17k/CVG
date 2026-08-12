@@ -46,6 +46,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [localBusqueda, setLocalBusqueda] = useState(filtrosValue.busqueda || '');
   const [localEstado, setLocalEstado] = useState(filtrosValue.estado || '');
+  const [localTipo, setLocalTipo] = useState(filtrosValue.tipo || '');
   const [localUsuario, setLocalUsuario] = useState(filtrosValue.id_usuario || '');
   const [localGerencia, setLocalGerencia] = useState(filtrosValue.id_gerencia || '');
   const [usuariosOptions, setUsuariosOptions] = useState([]);
@@ -55,6 +56,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
   useEffect(() => {
     setLocalBusqueda(filtrosValue.busqueda || '');
     setLocalEstado(filtrosValue.estado || '');
+    setLocalTipo(filtrosValue.tipo || '');
     setLocalUsuario(filtrosValue.id_usuario || '');
     setLocalGerencia(filtrosValue.id_gerencia || '');
   }, [filtrosValue]);
@@ -156,7 +158,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
       if (resp.ok) {
         const data = await resp.json();
         console.log('detalles :', data)
-        setSelected(data.solicitud);  // datos completos (incluye requerimientos_texto, pdf, etc.)
+        setSelected({ ...(data.solicitud || {}), aprobador: data.aprobador || null, historial: data.historial || [] });  // datos completos (incluye requerimientos_texto, pdf, etc.)
         setDetalles(data.detalles || []);
       }
 
@@ -613,11 +615,13 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Tipo de Gestión</p>
                     <p className="text-sm font-black text-blue-800">{selected.tipo_solicitud}</p>
                   </div>
-                  <div className={`px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider border shadow-sm transition-all
-              ${selected.estado_nombre === 'Aprobado' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                      selected.estado_nombre === 'Rechazado' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                        'bg-amber-50 max-sm:text-[8px] text-amber-700 border-amber-100 animate-pulse-subtle'}
-            `}>
+                  <div className="px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider border shadow-sm transition-all"
+                    style={{
+                      color: selected.estado_color || '#334155',
+                      borderColor: selected.estado_color || '#cbd5e1',
+                      backgroundColor: selected.estado_color ? `${selected.estado_color}1A` : 'rgba(148,163,184,0.1)'
+                    }}
+                  >
                     {selected.estado_nombre}
                   </div>
 
@@ -636,7 +640,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                   {/* Título y Gerencia */}
                   <section className="space-y-4">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Gerencia: {selected.nombre_gerencia}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Gerencia: {selected.nombre_gerencia} CC:{selected.centro_costo || 'N/A'}</span>
                     </div>
                     <h4 className="text-2xl font-black text-slate-800 leading-tight tracking-tight">
                       {selected.resumen}
@@ -685,6 +689,28 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                           : "Fecha no registrada"}
                       </p>
                     </div>
+
+                    {selected?.historial && selected.historial.length > 0 && (
+                      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Historial de Estados</p>
+                        <div className="space-y-3">
+                          {selected.historial.map((h, idx) => (
+                            <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-[11px] font-black uppercase tracking-wide text-slate-700">{h.estado_nuevo}</span>
+                                  <span className="text-[10px] text-slate-500">{h.fecha_cambio ? new Date(h.fecha_cambio).toLocaleString() : ''}</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                  {h.responsable && (h.responsable.nombres ? `${h.responsable.nombres} ${h.responsable.apellidos || ''}` : h.responsable.nombre)}
+                                </p>
+                                {h.comentarios && <p className="text-[11px] italic text-slate-400">{h.comentarios}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -790,7 +816,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                 const gerentePuedeActuar = esPendiente && (isGerente || isSuperAdmin || isAdministrador);
 
                 return (
-                  <div data-tour="solicitud-actions" className="bg-white px-10 py-7 border-t border-slate-100 flex justify-between items-center shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+                  <div data-tour="solicitud-actions" className="bg-white max-sm:hidden px-10 py-7 border-t border-slate-100 flex justify-between items-center shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-md">
                         <AvatarImage src={selected.avatar} className="object-cover" />
@@ -799,10 +825,12 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Responsable</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Solicitante</p>
                         <p className="text-sm font-black text-slate-900">{selected.nombre_completo}</p>
                       </div>
                     </div>
+
+                  
 
                     <div className="flex gap-3">
                       {(() => {
@@ -1038,6 +1066,19 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                   />
 
                   <Select
+                    label="Filtrar por Tipo"
+                    name="tipo"
+                    value={localTipo}
+                    onChange={(e) => setLocalTipo(e.target.value)}
+                    options={[
+                      { value: '', label: 'Todos los tipos' },
+                      { value: 'Compra', label: 'Compra' },
+                      { value: 'Servicio', label: 'Servicio' },
+                      { value: 'Obra', label: 'Obra' }
+                    ]}
+                  />
+
+                  <Select
                     label="Filtrar por Usuario"
                     name="id_usuario"
                     value={localUsuario}
@@ -1063,9 +1104,10 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                       // Limpiar filtros localmente y en el padre
                       setLocalBusqueda('');
                       setLocalEstado('');
+                      setLocalTipo('');
                       setLocalUsuario('');
                       setLocalGerencia('');
-                      if (onFilter) onFilter({ ...filtrosValue, busqueda: '', estado: '', id_usuario: '', id_gerencia: '' });
+                      if (onFilter) onFilter({ ...filtrosValue, busqueda: '', estado: '', tipo: '', id_usuario: '', id_gerencia: '' });
                       setFilterModalOpen(false);
                     }}
                     className="px-4 w-1/2 py-2.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
@@ -1076,7 +1118,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                   <button
                     onClick={() => {
                       if (onFilter) {
-                        onFilter({ ...filtrosValue, busqueda: localBusqueda, estado: localEstado, id_usuario: localUsuario, id_gerencia: localGerencia });
+                        onFilter({ ...filtrosValue, busqueda: localBusqueda, estado: localEstado, tipo: localTipo, id_usuario: localUsuario, id_gerencia: localGerencia });
                       }
                       setFilterModalOpen(false);
                     }}

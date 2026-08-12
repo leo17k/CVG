@@ -237,6 +237,7 @@ export const Boton = ({ onRefresh }) => {
     setStep(1); setTipoSolicitud(''); setResumen('');
     setRequerimientos(''); setJustTexto(''); setJustFile(null);
     setReqFile(null); setReqModo('texto'); setJustModo('texto'); setSelectedItems([]); setSolicitanteId('');
+    setShowCatalog(false); setCatView('categories'); setSearch(''); setSelCat(null);
     setErrors({});
   };
 
@@ -273,7 +274,7 @@ export const Boton = ({ onRefresh }) => {
     if (step === 2 && !resumen.trim()) {
       newErrors.resumen = "El resumen de la solicitud es obligatorio";
     }
-    if (step === 2 && selectedItems.length === 0) {
+    if (step === 2 && tipoSolicitud !== 'Obra' && selectedItems.length === 0) {
       gooeyToast.warning('Agrega al menos un ítem del catálogo', { showTimestamp: false });
       return;
     }
@@ -293,7 +294,7 @@ export const Boton = ({ onRefresh }) => {
     if (!resumen.trim()) {
       newErrors.resumen = "El resumen de la solicitud es obligatorio";
     }
-    if (selectedItems.length === 0) {
+    if (tipoSolicitud !== 'Obra' && selectedItems.length === 0) {
       gooeyToast.warning('Agrega al menos un ítem', { showTimestamp: false });
       return;
     }
@@ -344,7 +345,8 @@ export const Boton = ({ onRefresh }) => {
     }
   };
 
-  const STEPS = ['Tipo', 'Ítems', 'Justificación'];
+  const STEPS = tipoSolicitud === 'Obra' ? ['Tipo', 'Justificación'] : ['Tipo', 'Ítems', 'Justificación'];
+  const stepCount = STEPS.length;
 
   const usersOptions = usuarios.map(u => ({
     value: u.id_usuario,
@@ -404,6 +406,10 @@ export const Boton = ({ onRefresh }) => {
                           onClick={() => {
                             setTipoSolicitud(t.id);
                             setSelectedItems([]);
+                            setShowCatalog(false);
+                            setCatView('categories');
+                            setSearch('');
+                            setSelCat(null);
                             if (errors.tipoSolicitud) {
                               setErrors(prev => {
                                 const newErr = { ...prev };
@@ -424,7 +430,7 @@ export const Boton = ({ onRefresh }) => {
                   </>
                 )}
 
-                {/* STEP 2 — Resumen + Ítems */}
+                {/* STEP 2 — Resumen y, si aplica, selección de ítems */}
                 {step === 2 && (
                   <>
                     <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
@@ -462,96 +468,139 @@ export const Boton = ({ onRefresh }) => {
                         error={errors.resumen}
                       />
 
-                      <button data-tour="new-request-catalog" type="button" onClick={() => setShowCatalog(true)}
-                        className="w-full py-3.5 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold text-sm hover:bg-blue-50 hover:border-blue-300 hover:text-blue-500 transition-all flex items-center justify-center gap-2">
-                        <Search size={16} /> Abrir catálogo de {tipoSolicitud === 'Compra' ? 'Productos' : tipoSolicitud === 'Servicio' ? 'Servicios' : 'Ítems'}
-                      </button>
+                      {tipoSolicitud !== 'Obra' ? (
+                        <>
+                          <button data-tour="new-request-catalog" type="button" onClick={() => setShowCatalog(true)}
+                            className="w-full py-3.5 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold text-sm hover:bg-blue-50 hover:border-blue-300 hover:text-blue-500 transition-all flex items-center justify-center gap-2">
+                            <Search size={16} /> Abrir catálogo de {tipoSolicitud === 'Compra' ? 'Productos' : 'Servicios'}
+                          </button>
+
+                          {selectedItems.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">{selectedItems.length} ítem(s) seleccionado(s)</p>
+                              {selectedItems.map((p, i) => {
+                                const itemId = p.id_producto || p.id_servicio;
+                                return (
+                                  <div key={i} data-tour={`new-request-selected-${i}`} className="bg-white p-3.5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-black text-xs">{i + 1}</div>
+                                      <div>
+                                        <p className="text-sm font-bold text-slate-700">{p.nombre_producto || p.nombre_servicio}</p>
+                                        <p className="text-[11px] text-slate-400">{p.codigo_producto || p.codigo_servicio}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1">
+                                        <button type="button" onClick={() => updateQty(itemId, -1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">−</button>
+                                        <input
+                                          data-tour={`new-request-qty-${itemId}`}
+                                          type="number"
+                                          min={1}
+                                          value={p.cantidad}
+                                          onChange={(e) => setQty(itemId, e.target.value)}
+                                          onBlur={() => { if (!p.cantidad || Number(p.cantidad) < 1) setQty(itemId, 1); }}
+                                          className="w-12 text-sm text-center bg-transparent outline-none font-black"
+                                        />
+                                        <button type="button" onClick={() => updateQty(itemId, 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">+</button>
+                                      </div>
+                                      <button type="button" onClick={() => removeItem(itemId)} className="text-rose-400 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 p-3.5 bg-amber-50 border border-amber-100 rounded-xl text-amber-600 text-xs font-bold">
+                              <AlertTriangle size={14} /> Agrega al menos un ítem del catálogo
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                          Solicitudes de Obra no requieren selección de catálogo. Continúa con la justificación técnica y requerimientos.
+                        </div>
+                      )}
                     </div>
 
-                    {selectedItems.length > 0 ? (
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">{selectedItems.length} ítem(s) seleccionado(s)</p>
-                        {selectedItems.map((p, i) => {
-                          const itemId = p.id_producto || p.id_servicio;
-                          return (
-                            <div key={i} data-tour={`new-request-selected-${i}`} className="bg-white p-3.5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
-                              <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-black text-xs">{i + 1}</div>
-                                <div>
-                                  <p className="text-sm font-bold text-slate-700">{p.nombre_producto || p.nombre_servicio}</p>
-                                  <p className="text-[11px] text-slate-400">{p.codigo_producto || p.codigo_servicio}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1">
-                                  <button type="button" onClick={() => updateQty(itemId, -1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">−</button>
-                                  <input
-                                    data-tour={`new-request-qty-${itemId}`}
-                                    type="number"
-                                    min={1}
-                                    value={p.cantidad}
-                                    onChange={(e) => setQty(itemId, e.target.value)}
-                                    onBlur={() => { if (!p.cantidad || Number(p.cantidad) < 1) setQty(itemId, 1); }}
-                                    className="w-12 text-sm text-center bg-transparent outline-none font-black"
-                                  />
-                                  <button type="button" onClick={() => updateQty(itemId, 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">+</button>
-                                </div>
-                                <button type="button" onClick={() => removeItem(itemId)} className="text-rose-400 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
+                    {tipoSolicitud === 'Obra' && (
+                      <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación técnica</p>
+                        {justModo === 'texto' ? (
+                          <TextArea
+                            label="Escribe la justificación técnica"
+                            name="justificacion"
+                            value={justTexto}
+                            onChange={e => {
+                              setJustTexto(e.target.value);
+                              if (errors.justificacion) {
+                                setErrors(prev => {
+                                  const newErr = { ...prev };
+                                  delete newErr.justificacion;
+                                  return newErr;
+                                });
+                              }
+                            }}
+                            error={errors.justificacion}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => document.getElementById('pdf-up').click()}
+                            className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all ${errors.justificacion_pdf ? 'border-red-500 bg-red-50/30' : 'border-slate-200'}`}>
+                            <Upload size={32} className={errors.justificacion_pdf ? 'text-red-400' : 'text-slate-300'} />
+                            <span className={`text-xs font-bold text-center ${errors.justificacion_pdf ? 'text-red-600' : 'text-slate-400'}`}>
+                              {justFile ? `✅ ${justFile.name}` : 'Haz clic para subir un PDF de justificación'}
+                            </span>
+                            {errors.justificacion_pdf && (
+                              <span className="text-xs font-bold text-red-500 block">{errors.justificacion_pdf}</span>
+                            )}
+                            <input
+                              id="pdf-up"
+                              type="file"
+                              hidden
+                              accept=".pdf"
+                              onChange={e => {
+                                if (e.target.files && e.target.files[0]) {
+                                  setJustFile(e.target.files[0]);
+                                  if (errors.justificacion_pdf) {
+                                    setErrors(prev => {
+                                      const newErr = { ...prev };
+                                      delete newErr.justificacion_pdf;
+                                      return newErr;
+                                    });
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Requerimientos técnicos</p>
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                          <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
+                          <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Adjuntar PDF</button>
+                        </div>
+                        {reqModo === 'texto'
+                          ? <TextArea label="Escribe los requerimientos técnicos" name="requerimientos" defaultValue={requerimientos} onChange={e => setRequerimientos(e.target.value)} />
+                          : (
+                            <div onClick={() => document.getElementById('req-pdf-up').click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
+                              <Upload size={32} className="text-slate-300" />
+                              <span className="text-xs font-bold text-slate-400 text-center">
+                                {reqFile ? `✅ ${reqFile.name}` : 'Haz clic para subir un PDF de requerimientos'}
+                              </span>
+                              <input id="req-pdf-up" type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
                             </div>
-                          );
-                        })}
-
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 p-3.5 bg-amber-50 border border-amber-100 rounded-xl text-amber-600 text-xs font-bold">
-                        <AlertTriangle size={14} /> Agrega al menos un ítem del catálogo
+                          )}
                       </div>
                     )}
                   </>
                 )}
 
-                {/* STEP 3 — Justificación */}
+                {/* STEP 3 — Justificación y requerimientos */}
                 {step === 3 && (
                   <>
-                    <div data-tour="new-request-justificacion" className="max-w-2xl mx-auto bg-white p-6 rounded-3xl border border-slate-100 space-y-5">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación</p>
-                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setJustModo('texto');
-                            if (errors.justificacion_pdf) {
-                              setErrors(prev => {
-                                const newErr = { ...prev };
-                                delete newErr.justificacion_pdf;
-                                return newErr;
-                              });
-                            }
-                          }}
-                          className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
-                        >
-                          Texto
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setJustModo('archivo');
-                            if (errors.justificacion) {
-                              setErrors(prev => {
-                                const newErr = { ...prev };
-                                delete newErr.justificacion;
-                                return newErr;
-                              });
-                            }
-                          }}
-                          className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
-                        >
-                          Adjuntar PDF
-                        </button>
-                      </div>
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación técnica</p>
                       {justModo === 'texto' ? (
                         <TextArea
                           label="Escribe la justificación técnica"
@@ -572,9 +621,7 @@ export const Boton = ({ onRefresh }) => {
                       ) : (
                         <div
                           onClick={() => document.getElementById('pdf-up').click()}
-                          className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all
-                            ${errors.justificacion_pdf ? 'border-red-500 bg-red-50/30' : 'border-slate-200'}`}
-                        >
+                          className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all ${errors.justificacion_pdf ? 'border-red-500 bg-red-50/30' : 'border-slate-200'}`}>
                           <Upload size={32} className={errors.justificacion_pdf ? 'text-red-400' : 'text-slate-300'} />
                           <span className={`text-xs font-bold text-center ${errors.justificacion_pdf ? 'text-red-600' : 'text-slate-400'}`}>
                             {justFile ? `✅ ${justFile.name}` : 'Haz clic para subir un PDF de justificación'}
@@ -602,7 +649,7 @@ export const Boton = ({ onRefresh }) => {
                           />
                         </div>
                       )}
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Requerimientos Tecnicos</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Requerimientos técnicos</p>
                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                         <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
                         <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Adjuntar PDF</button>
@@ -617,11 +664,8 @@ export const Boton = ({ onRefresh }) => {
                             </span>
                             <input id="req-pdf-up" type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
                           </div>
-                        )
-                      }
-
+                        )}
                     </div>
-
                   </>
                 )}
 
@@ -637,7 +681,7 @@ export const Boton = ({ onRefresh }) => {
                 className={`px-5 py-2.5 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-slate-700 transition-colors`}>
                 {step > 1 ? '← Regresar' : 'Salir'}
               </button>
-              {step < 3
+              {step < stepCount
                 ? <button data-tour="new-request-next" type="button" onClick={goNext} className="bg-slate-900 text-white px-8 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all">
                   Siguiente →
                 </button>
@@ -653,7 +697,7 @@ export const Boton = ({ onRefresh }) => {
       )}
 
       {/* ── MODAL CATÁLOGO ── */}
-      {showCatalog && (
+      {showCatalog && tipoSolicitud !== 'Obra' && (
         <FullModal padding={false} onClose={closeCatalog} contenido={
           <div className="flex flex-col h-full bg-white">
             <header className="px-7 py-4 border-b border-slate-100 flex flex-col gap-3 bg-slate-50">

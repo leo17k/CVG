@@ -7,7 +7,7 @@
   "scripts": {
     "front": "vite --host",
     "serve": "node --watch Backend/App.js",
-    "dev": "concurrently \"vite preview\" \"npm run serve\"",
+    "dev": "concurrently \"vite --host\" \"npm run serve\"",
     "build": "vite build",
     "compile": "npm run build && npx pkg . --targets node18.5.0-win-x64 --out-path dist-bin",
     "lint": "eslint .",

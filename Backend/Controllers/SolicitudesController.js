@@ -38,14 +38,15 @@ export const getSolicitudes = async (req, res) => {
         const limit    = parseInt(req.query.limit)  || 10;
         const estado   = req.query.estado   || null;
         const busqueda = req.query.busqueda || null;
+        const tipo     = req.query.tipo     || null;
         const vista    = req.query.vista    || null;
         const id_usuario = req.query.id_usuario || null;
         const id_gerencia = req.query.id_gerencia || null;
 
         const isAdmin = Number(userRole) === 1 || Number(userRole) === 5 || Number(userRole) === 11;
         const result  = isAdmin
-            ? await solicitudESCOMPRA({ page, limit, estado, busqueda, roleId: userRole, userId, vista, id_usuario, id_gerencia })
-            : await solicitudESCOMPRA({ userId, roleId: userRole, page, limit, estado, busqueda, vista, id_usuario, id_gerencia });
+            ? await solicitudESCOMPRA({ page, limit, estado, busqueda, tipo, roleId: userRole, userId, vista, id_usuario, id_gerencia })
+            : await solicitudESCOMPRA({ userId, roleId: userRole, page, limit, estado, busqueda, tipo, vista, id_usuario, id_gerencia });
 
         res.status(200).json({
             mensaje: result.rows,
@@ -200,7 +201,54 @@ export const getSolicitudById = async (req, res) => {
             ORDER BY d.id_detalle ASC
         `, [id]);
 
-        return res.json({ solicitud: soliRows[0], detalles: detalleRows });
+        // Buscar historial (últimos cambios) para mostrar stack de estados y aprobador
+        try {
+            const [histRows] = await pool.execute(`
+                SELECT usuario_responsable, estado_anterior, estado_nuevo, fecha_cambio, comentarios_observacion
+                FROM historial_estados
+                WHERE id_solicitud = ?
+                ORDER BY fecha_cambio DESC
+                LIMIT 10
+            `, [id]);
+
+            const historial = [];
+            for (const h of histRows || []) {
+                let responsableInfo = null;
+                if (h.usuario_responsable) {
+                    try {
+                        let [uRows] = await pool.execute(`SELECT id_usuario, nombres, apellidos, avatar, username FROM usuarios WHERE username = ? LIMIT 1`, [h.usuario_responsable]);
+                        if ((!uRows || !uRows.length) && /^\d+$/.test(String(h.usuario_responsable))) {
+                            const [uRowsById] = await pool.execute(`SELECT id_usuario, nombres, apellidos, avatar, username FROM usuarios WHERE id_usuario = ? LIMIT 1`, [Number(h.usuario_responsable)]);
+                            uRows = uRowsById;
+                        }
+                        if (uRows && uRows.length) {
+                            const u = uRows[0];
+                            responsableInfo = { id_usuario: u.id_usuario, nombres: u.nombres, apellidos: u.apellidos, avatar: u.avatar, username: u.username };
+                        } else {
+                            responsableInfo = { nombre: h.usuario_responsable };
+                        }
+                    } catch (e) {
+                        responsableInfo = { nombre: h.usuario_responsable };
+                    }
+                }
+
+                historial.push({
+                    usuario_responsable: h.usuario_responsable,
+                    responsable: responsableInfo,
+                    estado_anterior: h.estado_anterior,
+                    estado_nuevo: h.estado_nuevo,
+                    fecha_cambio: h.fecha_cambio,
+                    comentarios: h.comentarios_observacion || null
+                });
+            }
+
+            const aprobador = historial.length ? historial[0] : null;
+
+            return res.json({ solicitud: soliRows[0], detalles: detalleRows, historial, aprobador });
+        } catch (errHist) {
+            console.error('Error buscando historial de estados:', errHist);
+            return res.json({ solicitud: soliRows[0], detalles: detalleRows, historial: [], aprobador: null });
+        }
     } catch (error) {
         console.error('Error obteniendo detalle de solicitud:', error);
         res.status(500).json({ error: 'Error interno del servidor' });
@@ -386,9 +434,9 @@ export const updateEstado = async (req, res) => {
             }
         }
 
-        // Si la solicitud es de tipo Compra o Servicio y fue aprobada, enviar inmediatamente a Access (no bloquear respuesta)
+        // Si la solicitud es de tipo Compra o Servicio y llegó a Aprovadas, enviar inmediatamente a Access (no bloquear respuesta)
         if (
-            ['Aprovadas', 'Aprobado Gerencia', 'En Compras'].includes(estadoFinal)
+            estadoFinal === 'Aprovadas'
             && ['Compra', 'Servicio'].includes(solicitud.tipo_solicitud)
         ) {
             (async () => {

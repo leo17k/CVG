@@ -184,6 +184,7 @@ const solicitudESCOMPRA = async (body = {}) => {
         limit = 10,
         estado,
         busqueda,
+        tipo,
         vista,
         id_usuario,
         id_gerencia
@@ -315,6 +316,12 @@ const solicitudESCOMPRA = async (body = {}) => {
     if (estado) {
         whereClause += ' AND e.nombre = ?';
         values.push(estado);
+    }
+
+    // Filtro por tipo de solicitud (Compra/Servicio/Obra)
+    if (tipo) {
+        whereClause += ' AND s.tipo_solicitud = ?';
+        values.push(tipo);
     }
 
     // Filtro por gerencia específica

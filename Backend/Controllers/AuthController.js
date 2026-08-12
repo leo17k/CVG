@@ -94,7 +94,7 @@ export const forgotPassword = async (req, res) => {
 
         // Buscar si el usuario existe
         const [users] = await pool.query(
-            'SELECT id_usuario, nombres, email FROM usuarios WHERE email = ? LIMIT 1',
+            'SELECT id_usuario, nombres, username, email FROM usuarios WHERE email = ? LIMIT 1',
             [email]
         );
 
@@ -120,7 +120,7 @@ export const forgotPassword = async (req, res) => {
 
         let destEmail = user.email || 'esteysertorres2@gmail.com';
 
-        const mailResult = await sendResetPasswordEmail(destEmail, user.nombres, resetLink);
+        const mailResult = await sendResetPasswordEmail(destEmail, user.nombres, user.username, resetLink);
         if (!mailResult.success) {
             return res.status(500).json({ success: false, message: 'Error al enviar el correo de recuperación.' });
         }
