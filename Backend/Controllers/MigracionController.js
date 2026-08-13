@@ -203,7 +203,12 @@ export const exportToAccess = async (req, res) => {
     const previewList = [];
 
     for (const s of solicitudes) {
-      const typePrefix = s.tipo_solicitud === 'Compra' ? 'C' : 'S';
+      const accessType = {
+        Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' },
+        Obra: { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' },
+        Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' },
+      }[(s.tipo_solicitud) || 'Servicio'];
+      const typePrefix = accessType.prefix;
       const NReqCompra = `${typePrefix}-${s.id_solicitud}`;
 
       try {
@@ -245,7 +250,12 @@ export const exportToAccess = async (req, res) => {
         // Insertar cabecera REQCOMPRA
         const estadoRC = ['Aprovadas', 'Finalizado'].includes(s.estado_nombre) ? 'AP' : 'IN';
         const prioridadRC = s.prioridad === 'Alta' ? 1 : (s.prioridad === 'Media' ? 2 : 3);
-        const tipoRC = s.tipo_solicitud === 'Compra' ? 'CO' : 'SV';
+        const accessType = {
+          Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' },
+          Obra: { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' },
+          Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' },
+        }[(s.tipo_solicitud) || 'Servicio'];
+        const tipoRC = accessType.tipoRC;
 
         // Preparar valores para inserción según el esquema detectado
         let codigoCentro = null;
@@ -340,7 +350,7 @@ export const exportToAccess = async (req, res) => {
           const Descripcion = d.nombre_producto || d.nombre_servicio || 'SIN DESCRIPCION';
           const Unidad = d.unidad_producto || 'C/U';
           const Cantidad = num(d.cantidad, 1);
-          const Cod_Tipo = d.categoria_producto || (s.tipo_solicitud === 'Compra' ? 'CO01' : 'ST01');
+          const Cod_Tipo = d.categoria_producto || accessType.detalleTipo;
 
           const nrenglonSql = nrenglonIsNumeric ? `${NRenglon}` : `'${NRenglon}'`;
           const cantidadSql = cantidadIsNumeric ? `${Cantidad}` : `'${Cantidad}'`;

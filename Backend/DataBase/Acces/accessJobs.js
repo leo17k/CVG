@@ -49,6 +49,18 @@ const num = (v, defaultVal = 0) => {
   return Number.isNaN(n) ? defaultVal : n;
 };
 
+const getAccessRequestType = (tipo) => {
+  switch (tipo) {
+    case 'Compra':
+      return { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' };
+    case 'Obra':
+      return { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' };
+    case 'Servicio':
+    default:
+      return { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' };
+  }
+};
+
 // Schema detection cache
 let schemaDetected = false;
 let nreqIsNumeric = false;
@@ -134,7 +146,8 @@ export async function sendSolicitudToAccess(id_solicitud) {
       appendLog(`[AccessJobs] Solicitud ${id_solicitud} no exportada a Access porque su estado es ${s.estado_nombre} (id ${s.id_estado})`);
       return { ok: false, reason: 'not-approved' };
     }
-    const typePrefix = s.tipo_solicitud === 'Compra' ? 'C' : 'S';
+    const accessType = getAccessRequestType(s.tipo_solicitud);
+    const typePrefix = accessType.prefix;
     const NReqCompra = `${typePrefix}-${s.id_solicitud}`;
 
     await detectSchema();
@@ -164,7 +177,7 @@ export async function sendSolicitudToAccess(id_solicitud) {
     // Preparar valores
     const estadoRC = ['Aprovadas', 'Finalizado', 'Aprobado'].includes(s.estado_nombre) ? 'AP' : 'IN';
     const prioridadRC = s.prioridad === 'Alta' ? 1 : (s.prioridad === 'Media' ? 2 : 3);
-    const tipoRC = s.tipo_solicitud === 'Compra' ? 'CO' : 'SV';
+    const tipoRC = accessType.tipoRC;
 
     let codigoCentro = null;
     try {
@@ -292,7 +305,7 @@ export async function sendSolicitudToAccess(id_solicitud) {
       const Descripcion = d.nombre_producto || d.nombre_servicio || 'SIN DESCRIPCION';
       const Unidad = d.unidad_producto || 'C/U';
       const Cantidad = num(d.cantidad, 1);
-      const Cod_Tipo = d.categoria_producto || (s.tipo_solicitud === 'Compra' ? 'CO01' : 'ST01');
+      const Cod_Tipo = d.categoria_producto || accessType.detalleTipo;
 
       const nrenglonSql = nrenglonIsNumeric ? `${NRenglon}` : `'${NRenglon}'`;
       const cantidadSql = cantidadIsNumeric ? `${Cantidad}` : `'${Cantidad}'`;
