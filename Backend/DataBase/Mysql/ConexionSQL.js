@@ -42,6 +42,14 @@ try {
   } catch (e) {
     // Ignorar si la columna ya existe
   }
+
+  // Crear columna cedula si no existe en la tabla usuarios
+  try {
+    await connection.query(`ALTER TABLE usuarios ADD COLUMN cedula VARCHAR(30) NULL AFTER email`);
+    console.log(green("Columna cedula en tabla usuarios verificada/añadida."));
+  } catch (e) {
+    // Ignorar si la columna ya existe
+  }
   
   connection.release();
 }

@@ -96,7 +96,7 @@ const TablaUsuarios = ({
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editData, setEditData] = useState({});
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '' });
+    const [createData, setCreateData] = useState({ id_rol: 4, id_gerencia: '', cedula: '' });
     const [editErrors, setEditErrors] = useState({});
     const [createErrors, setCreateErrors] = useState({});
 
@@ -281,6 +281,7 @@ const TablaUsuarios = ({
         } else if (!validateEmail(editData.email)) {
             errors.email = "El formato de correo no es válido";
         }
+        if (!editData.cedula?.trim()) errors.cedula = "La cédula es obligatoria";
         if (!editData.id_rol) errors.id_rol = "El rol es obligatorio";
         if (!editData.id_gerencia) errors.id_gerencia = "La gerencia es obligatoria";
 
@@ -308,6 +309,7 @@ const TablaUsuarios = ({
         } else if (!validateEmail(createData.email)) {
             errors.email = "El formato de correo no es válido";
         }
+        if (!createData.cedula?.trim()) errors.cedula = "La cédula es obligatoria";
         if (!createData.username?.trim()) errors.username = "El nombre de usuario es obligatorio";
         if (!createData.password) {
             errors.password = "La contraseña es obligatoria";
@@ -334,7 +336,7 @@ const TablaUsuarios = ({
             if (res.ok) {
                 toast.success('Usuario creado con éxito');
                 setCreateModalOpen(false);
-                setCreateData({ id_rol: 4, id_gerencia: '' });
+                setCreateData({ id_rol: 4, id_gerencia: '', cedula: '' });
                 setCreateErrors({});
                 onUserCreated?.();
                 return;
@@ -519,7 +521,11 @@ const TablaUsuarios = ({
                             <span className="inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-blue-50 text-blue-600">{selected.nombre_rol}</span>
                         </div>
                         <div className="w-full space-y-1 mb-6">
-                            {[['Gerencia', selected.nombre_gerencia], ['Estado', (selected.activo === undefined || selected.activo === 1 || selected.activo === true) ? 'Activo' : 'Inactivo']].map(([k, v]) => (
+                            {[
+                            ['Gerencia', selected.nombre_gerencia],
+                            ['Cédula', selected.cedula || '—'],
+                            ['Estado', (selected.activo === undefined || selected.activo === 1 || selected.activo === true) ? 'Activo' : 'Inactivo']
+                        ].map(([k, v]) => (
                                 <div key={k} className="flex justify-between items-center p-3 rounded-xl hover:bg-gray-50">
                                     <span className="text-sm font-medium text-gray-400">{k}</span>
                                     <span className={`text-sm font-semibold ${k === 'Estado' ? (v === 'Activo' ? 'text-green-600' : 'text-rose-500') : 'text-gray-700'}`}>{v || '—'}</span>
@@ -567,6 +573,7 @@ const TablaUsuarios = ({
                             <Input label="Apellidos" name="apellidos" value={editData.apellidos || ''} onChange={handleEditChange} error={editErrors.apellidos} />
                         </div>
                         <Input label="Correo Electrónico" name="email" value={editData.email || ''} onChange={handleEditChange} error={editErrors.email} />
+                        <Input label="Cédula" name="cedula" value={editData.cedula || ''} onChange={handleEditChange} error={editErrors.cedula} />
                         <Select label="Rol del Sistema" name="id_rol" defaultValue={editData.id_rol} options={roles} onChange={handleEditChange} error={editErrors.id_rol} />
                         <Select label="Gerencia" name="id_gerencia" defaultValue={editData.id_gerencia} options={gerencias} onChange={handleEditChange} error={editErrors.id_gerencia} />
                         <div className="flex justify-end gap-3 mt-4">
@@ -593,6 +600,7 @@ const TablaUsuarios = ({
                             <Input label="Apellidos" name="apellidos" value={createData.apellidos || ''} onChange={handleCreateChange} error={createErrors.apellidos} />
                         </div>
                         <Input label="Correo Electrónico" name="email" value={createData.email || ''} onChange={handleCreateChange} error={createErrors.email} />
+                        <Input label="Cédula" name="cedula" value={createData.cedula || ''} onChange={handleCreateChange} error={createErrors.cedula} />
                         <div className="grid grid-cols-2 gap-4 max-lg:flex max-lg:flex-col">
                             <Input label="Username" name="username" value={createData.username || ''} autoComplete="off" onChange={handleCreateChange} error={createErrors.username} />
                             <Input label="Contraseña" name="password" type="password" value={createData.password || ''} autoComplete="new-password" onChange={handleCreateChange} error={createErrors.password} />
@@ -600,7 +608,7 @@ const TablaUsuarios = ({
                         <Select label="Gerencia" required name="id_gerencia" value={createData.id_gerencia || ''} onChange={handleCreateChange} options={gerencias} error={createErrors.id_gerencia} />
                         <Select label="Rol del Sistema" required name="id_rol" value={createData.id_rol} options={roles} onChange={handleCreateChange} error={createErrors.id_rol} />
                         <div className="flex justify-end gap-3 mt-4">
-                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
+                            <button onClick={() => { setCreateModalOpen(false); setCreateErrors({}); setCreateData({ id_rol: 4, id_gerencia: '', cedula: '' }); }} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
                             <button onClick={submitCreate} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-100 transition-all">
                                 Registrar Usuario
                             </button>

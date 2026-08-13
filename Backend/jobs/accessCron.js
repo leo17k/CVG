@@ -6,8 +6,9 @@ export function startAccessJobs() {
   try {
     const migrationCron = process.env.ACCESS_MIGRATION_CRON || '0 * * * *';
     const migrationHours = Number(process.env.MIGRATION_INTERVAL_HOURS) || 1;
+    const backupEnabled = process.env.ACCESS_BACKUP_ENABLED !== 'false';
 
-    console.log(`[AccessCron] Configuración cargada: Cron = "${migrationCron}", Intervalo = ${migrationHours} hora(s)`);
+    console.log(`[AccessCron] Configuración cargada: Cron = "${migrationCron}", Intervalo = ${migrationHours} hora(s), Backup habilitado = ${backupEnabled}`);
 
     // Job para sincronización/migración periódica
     const migrJob = cron.schedule(migrationCron, async () => {
@@ -32,21 +33,26 @@ export function startAccessJobs() {
       }
     }, { scheduled: true });
 
-    // Job diario: respaldo de archivos Access (cron configurable vía ACCESS_BACKUP_CRON)
-    const backupCron = process.env.ACCESS_BACKUP_CRON || '0 0 * * *';
-    const backupJob = cron.schedule(backupCron, async () => {
-      console.log(`[AccessCron] [Backup] Iniciando respaldo programado de bases de datos Access (${backupCron})...`);
-      try {
-        await backupAccessFiles();
-        console.log(`[AccessCron] [Backup] Respaldo finalizado correctamente.`);
-      } catch (e) {
-        console.error('[AccessCron] [Backup] Error en backup de Access:', e.message || e);
-      }
-    }, { scheduled: true });
+    let backupJob = null;
+    if (backupEnabled) {
+      // Job diario: respaldo de archivos Access (cron configurable vía ACCESS_BACKUP_CRON)
+      const backupCron = process.env.ACCESS_BACKUP_CRON || '0 0 * * *';
+      backupJob = cron.schedule(backupCron, async () => {
+        console.log(`[AccessCron] [Backup] Iniciando respaldo programado de bases de datos Access (${backupCron})...`);
+        try {
+          await backupAccessFiles();
+          console.log(`[AccessCron] [Backup] Respaldo finalizado correctamente.`);
+        } catch (e) {
+          console.error('[AccessCron] [Backup] Error en backup de Access:', e.message || e);
+        }
+      }, { scheduled: true });
+    } else {
+      console.log('[AccessCron] [Backup] Backup de Access deshabilitado por ACCESS_BACKUP_ENABLED=false');
+    }
 
     // Start jobs
     migrJob.start();
-    backupJob.start();
+    if (backupJob) backupJob.start();
 
     // Ejecutar una vez al arrancar para sincronizar cambios recientes
     (async () => {
@@ -67,7 +73,7 @@ export function startAccessJobs() {
       }
     })();
 
-    console.log(`[AccessCron] Jobs inicializados correctamente: Sincronización (cron: "${migrationCron}") y Respaldo (cron: "${backupCron}")`);
+    console.log(`[AccessCron] Jobs inicializados correctamente: Sincronización (cron: "${migrationCron}")${backupEnabled ? ` y Respaldo habilitado` : ' y Respaldo deshabilitado'}`);
     return { migrJob, backupJob };
   } catch (err) {
     console.error('[AccessCron] No se pudieron iniciar los jobs:', err.message || err);
