@@ -125,6 +125,7 @@ const TablaUsuarios = ({
     // Infinite scroll
     const [visibleCount, setVisibleCount] = useState(12);
     const loaderRef = useRef(null);
+    const scrollContainerRef = useRef(null);
 
     // Visual loading skeleton (min 200 ms)
     const [visualLoading, setVisualLoading] = useState(true);
@@ -140,14 +141,17 @@ const TablaUsuarios = ({
     // Infinite scroll observer
     useEffect(() => {
         const el = loaderRef.current;
+        const rootEl = scrollContainerRef.current;
         if (!el) return;
         const obs = new IntersectionObserver(
-            ([entry]) => { if (entry.isIntersecting) setVisibleCount(c => c + 12); },
-            { threshold: 0.1 }
+            ([entry]) => {
+                if (entry.isIntersecting) setVisibleCount(c => c + 12);
+            },
+            { root: rootEl, threshold: 0.1 }
         );
         obs.observe(el);
         return () => obs.disconnect();
-    }, []);
+    }, [filtered.length, visibleCount]);
 
     // ── Filtering (client side on current page data) ──
     const filtered = data.filter(row => {
@@ -445,7 +449,7 @@ const TablaUsuarios = ({
                 </div>
 
                 {/* ── Cards grid ── */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-4">
                     {visualLoading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {[...Array(10)].map((_, i) => <SkeletonCard key={i} />)}
