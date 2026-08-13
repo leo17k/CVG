@@ -122,11 +122,6 @@ const TablaUsuarios = ({
     const columnaLabel = { nombres: 'Nombre', email: 'Correo', username: 'Usuario' };
     const hasActiveFilters = gerencia || columna !== 'nombres';
 
-    // Infinite scroll
-    const [visibleCount, setVisibleCount] = useState(12);
-    const loaderRef = useRef(null);
-    const scrollContainerRef = useRef(null);
-
     // Visual loading skeleton (min 200 ms)
     const [visualLoading, setVisualLoading] = useState(true);
     useEffect(() => {
@@ -135,24 +130,6 @@ const TablaUsuarios = ({
         return () => clearTimeout(t);
     }, [apiLoading, currentPage]);
 
-    // Reset visible count when data changes
-    useEffect(() => { setVisibleCount(12); }, [data]);
-
-    // Infinite scroll observer
-    useEffect(() => {
-        const el = loaderRef.current;
-        const rootEl = scrollContainerRef.current;
-        if (!el) return;
-        const obs = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) setVisibleCount(c => c + 12);
-            },
-            { root: rootEl, threshold: 0.1 }
-        );
-        obs.observe(el);
-        return () => obs.disconnect();
-    }, [filtered.length, visibleCount]);
-
     // ── Filtering (client side on current page data) ──
     const filtered = data.filter(row => {
         const matchG = !gerencia || String(row.id_gerencia) === String(gerencia);
@@ -160,8 +137,9 @@ const TablaUsuarios = ({
         const matchS = !term || String(row[columna] || '').toLowerCase().includes(term);
         return matchG && matchS;
     });
-    const visible = filtered.slice(0, visibleCount);
-    const hasMore = visibleCount < filtered.length || currentPage < totalPages;
+
+    const visible = filtered;
+    const hasMore = currentPage < totalPages;
 
     // Apply search to parent (debounced)
     useEffect(() => {
@@ -449,7 +427,7 @@ const TablaUsuarios = ({
                 </div>
 
                 {/* ── Cards grid ── */}
-                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
                     {visualLoading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {[...Array(10)].map((_, i) => <SkeletonCard key={i} />)}
@@ -474,21 +452,14 @@ const TablaUsuarios = ({
 
                             {/* Infinite scroll trigger */}
                             {hasMore && (
-                                <div ref={loaderRef} className="flex justify-center py-6">
-                                    {visibleCount >= filtered.length && currentPage < totalPages ? (
-                                        <button
-                                            onClick={() => onPageChange(currentPage + 1)}
-                                            disabled={apiLoading}
-                                            className="px-6 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all disabled:opacity-50"
-                                        >
-                                            Cargar más usuarios
-                                        </button>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                                            <span className="text-xs">Cargando...</span>
-                                        </div>
-                                    )}
+                                <div className="flex justify-center py-6">
+                                    <button
+                                        onClick={() => onPageChange && onPageChange(currentPage + 1)}
+                                        disabled={apiLoading}
+                                        className="px-6 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all disabled:opacity-50"
+                                    >
+                                        Cargar más usuarios
+                                    </button>
                                 </div>
                             )}
                         </>
@@ -498,12 +469,23 @@ const TablaUsuarios = ({
                 {/* ── Footer ── */}
                 <div className="p-3 border-t border-slate-100 bg-slate-50/40 shrink-0 flex items-center justify-between">
                     <p className="text-xs text-slate-400 font-medium">
-                        Mostrando <span className="text-slate-700 font-semibold">{Math.min(visibleCount, filtered.length)}</span> de <span className="text-slate-700 font-semibold">{filtered.length}</span> · Página {currentPage}/{totalPages}
+                        Página <span className="text-slate-700 font-semibold">{currentPage}</span> de <span className="text-slate-700 font-semibold">{totalPages}</span>
                     </p>
-                    <div className="flex gap-1">
-                        {[...Array(Math.min(totalPages, 5))].map((_, i) => (
-                            <div key={i} className={`rounded-full transition-all ${currentPage === i + 1 ? 'bg-blue-500 w-4 h-2' : 'bg-slate-200 w-2 h-2'}`} />
-                        ))}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => onPageChange && onPageChange(Math.max(1, currentPage - 1))}
+                            disabled={currentPage === 1 || apiLoading}
+                            className="px-2 py-1 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg disabled:opacity-40"
+                        >
+                            Anterior
+                        </button>
+                        <button
+                            onClick={() => onPageChange && onPageChange(Math.min(totalPages, currentPage + 1))}
+                            disabled={currentPage >= totalPages || apiLoading}
+                            className="px-2 py-1 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg disabled:opacity-40"
+                        >
+                            Siguiente
+                        </button>
                     </div>
                 </div>
             </div>

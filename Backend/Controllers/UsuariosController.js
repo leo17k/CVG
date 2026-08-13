@@ -10,8 +10,12 @@ import { buscarUsuario } from '../DataBase/Mysql/ConsultasSQL.js';
 
 // GET /users
 export const getUsers = async (req, res) => {
-    const { gerencia, columna, busqueda } = req.query;
-    let sql = sqlUsuarios;
+    const { gerencia, columna, busqueda, page = 1, limit = 12 } = req.query;
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.min(100, Math.max(1, Number(limit) || 12));
+    const offset = (pageNumber - 1) * limitNumber;
+
+    let baseSql = sqlUsuarios;
     const params = [];
     const conditions = [];
 
@@ -38,12 +42,28 @@ export const getUsers = async (req, res) => {
     }
 
     if (conditions.length > 0) {
-        sql += ' WHERE ' + conditions.join(' AND ');
+        baseSql += ' WHERE ' + conditions.join(' AND ');
     }
 
+    const countSql = `SELECT COUNT(*) AS total FROM (${baseSql}) AS filtered_users`;
+
     try {
-        const [usuarios] = await pool.query(sql, params);
-        res.json({ usuarios });
+        const [[countRow]] = await pool.query(countSql, params);
+        const total = Number(countRow?.total || 0);
+        const totalPages = Math.max(1, Math.ceil(total / limitNumber));
+        const safePage = Math.min(pageNumber, totalPages || pageNumber);
+
+        const listSql = `${baseSql} LIMIT ? OFFSET ?`;
+        const [usuarios] = await pool.query(listSql, [...params, limitNumber, offset]);
+
+        return res.json({
+            usuarios,
+            total,
+            page: safePage,
+            limit: limitNumber,
+            totalPages,
+            hasNextPage: safePage < totalPages
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

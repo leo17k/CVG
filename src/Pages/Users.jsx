@@ -7,6 +7,8 @@ export default function User() {
     const [gerencias, setGerencias] = useState([]);
     const [roles, setRoles] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     const host = window.location.hostname;
 
@@ -27,7 +29,7 @@ export default function User() {
 
     const fetchSession = async () => {
         try {
-            const resp = await fetch(`http://${host}:5000/check-session`, { credentials: 'include' });
+            const resp = await fetch(`http://${host}:5000/auth/check-session`, { credentials: 'include' });
             if (resp.ok) {
                 const js = await resp.json();
                 const rol = js?.datauser?.rol ?? js?.datauser?.id_rol ?? null;
@@ -41,13 +43,15 @@ export default function User() {
         }
     };
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (page = currentPage) => {
         setLoading(true);
         try {
-            const resp = await fetch(`http://${host}:5000/users`, { credentials: 'include' });
+            const resp = await fetch(`http://${host}:5000/users?page=${page}&limit=12`, { credentials: 'include' });
             if (resp.ok) {
                 const j = await resp.json();
                 setUsers(j.usuarios || []);
+                setCurrentPage(Number(j.page) || 1);
+                setTotalPages(Number(j.totalPages) || 1);
             } else {
                 console.error('Failed to fetch users', resp.status);
             }
@@ -60,7 +64,7 @@ export default function User() {
     useEffect(() => {
         fetchSession();
         fetchContext();
-        fetchUsers();
+        fetchUsers(1);
     }, []);
 
     return (
@@ -74,7 +78,14 @@ export default function User() {
                             roles={roles}
                             loading={loading}
                             isAdmin={isAdmin}
-                            onUserCreated={fetchUsers}
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={(page) => {
+                                if (page < 1 || page > totalPages) return;
+                                setCurrentPage(page);
+                                fetchUsers(page);
+                            }}
+                            onUserCreated={() => fetchUsers(currentPage)}
                         />
                     </div>
                     <div className="col-start-5 relative col-end-6 row-start-1 row-end-10 flex flex-col max-sm:h-max w-full  bg-white/80 backdrop-blur-md border border-gray-200 gap-6 rounded-3xl shadow-2xl p-6 transition-all duration-300 hover:shadow-blue-100/50">
