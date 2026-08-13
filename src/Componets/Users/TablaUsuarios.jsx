@@ -523,6 +523,7 @@ const TablaUsuarios = ({
                         <div className="w-full space-y-1 mb-6">
                             {[
                             ['Gerencia', selected.nombre_gerencia],
+                             ['Username', selected.username],
                             ['Cédula', selected.cedula || '—'],
                             ['Estado', (selected.activo === undefined || selected.activo === 1 || selected.activo === true) ? 'Activo' : 'Inactivo']
                         ].map(([k, v]) => (
