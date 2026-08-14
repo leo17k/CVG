@@ -17,7 +17,7 @@ import { sendSolicitudToAccess } from '../DataBase/Acces/accessJobs.js';
 // ── Helper privado ────────────────────────────────────────────────────────────
 const getEstadoId = async (nombre) => {
     const [rows] = await pool.query(
-        'SELECT id_estado, color_hex FROM estados_solicitud WHERE nombre = ? LIMIT 1',
+       'SELECT id_estado, color_hex FROM estados_solicitud WHERE nombre = ? LIMIT 1',
         [nombre]
     );
     if (!rows.length) throw new Error(`Estado '${nombre}' no existe en estados_solicitud`);
@@ -271,7 +271,17 @@ export const createSolicitud = async (req, res) => {
     } = req.body;
 
     let productos = [];
-    try { if (productosRaw) productos = JSON.parse(productosRaw); } catch { productos = []; }
+    try {
+        if (Array.isArray(productosRaw)) {
+            productos = productosRaw;
+        } else if (productosRaw && typeof productosRaw === 'string') {
+            productos = JSON.parse(productosRaw);
+        } else if (productosRaw && typeof productosRaw === 'object') {
+            productos = Array.isArray(productosRaw.items) ? productosRaw.items : [];
+        }
+    } catch {
+        productos = [];
+    }
 
     const justificacion_pdf_url = req.files && req.files['justificacion_pdf'] ? req.files['justificacion_pdf'][0].filename : null;
     const requerimientos_pdf_url = req.files && req.files['requerimientos_pdf'] ? req.files['requerimientos_pdf'][0].filename : null;
@@ -444,16 +454,16 @@ export const updateEstado = async (req, res) => {
             }
         }
 
-        // Si la solicitud es de tipo Compra o Servicio y llegó a Aprovadas, enviar inmediatamente a Access (no bloquear respuesta)
+        // Si la solicitud es de tipo Compra/Servicio/Obra y llegó a Aprovadas, sincronizar a Access en segundo plano
+        // sin bloquear la respuesta del backend ni el cierre del modal en frontend.
         if (
             ['Aprovadas', 'En Compras'].includes(estadoFinal)
             && ['Compra', 'Servicio', 'Obra'].includes(solicitud.tipo_solicitud)
         ) {
-            (async () => {
+            void (async () => {
                 try {
                     await sendSolicitudToAccess(id);
                 } catch (accessErr) {
-                    // Registrar error sin tumbar el servidor
                     try {
                         const fs = await import('fs');
                         const path = await import('path');

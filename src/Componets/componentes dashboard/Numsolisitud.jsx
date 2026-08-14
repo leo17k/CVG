@@ -101,13 +101,25 @@ const CatalogoProductos = ({ items, selected, onAdd, onBack }) => {
 };
 
 // ── Catálogo Servicios ─────────────────────────────────────────
+const isServicioObra = (item) => {
+  const nombre = String(item?.nombre_servicio ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const codigo = String(item?.codigo_servicio ?? '').toLowerCase();
+
+  return nombre.includes('obra') ||
+    nombre.includes('servicio de obra') ||
+    nombre.includes('serviciodeobra') ||
+    codigo.includes('obra') ||
+    codigo === '95884';
+};
+
 const CatalogoServicios = ({ items, selected, onAdd, search }) => {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return q ? items.filter(i =>
+    const baseItems = items.filter(item => !isServicioObra(item));
+    return q ? baseItems.filter(i =>
       i.nombre_servicio?.toLowerCase().includes(q) ||
       i.codigo_servicio?.toLowerCase().includes(q)
-    ) : items;
+    ) : baseItems;
   }, [items, search]);
   return (
     <div className="space-y-3">
@@ -176,6 +188,16 @@ export const Boton = ({ onRefresh }) => {
   const justPdfInputId = useRef(`justificacion-pdf-${Math.random().toString(36).slice(2)}`);
   const reqPdfInputId = useRef(`requerimientos-pdf-${Math.random().toString(36).slice(2)}`);
 
+  useEffect(() => {
+    const handleSolicitudCreada = () => {
+      setActivo(false);
+      resetForm();
+    };
+
+    window.addEventListener('solicitud-creada', handleSolicitudCreada);
+    return () => window.removeEventListener('solicitud-creada', handleSolicitudCreada);
+  }, []);
+
   // Cargar usuarios si es admin
   useEffect(() => {
     if (!isAdmin || !activo) return;
@@ -196,7 +218,10 @@ export const Boton = ({ onRefresh }) => {
       ]);
       if (cR.ok) setCategories((await cR.json()).data || []);
       if (pR.ok) setProducts((await pR.json()).data || []);
-      if (sR.ok) setServices((await sR.json()).data || []);
+      if (sR.ok) {
+        const servicios = (await sR.json()).data || [];
+        setServices(servicios.filter(item => !isServicioObra(item)));
+      }
       setCatLoaded(true);
     } catch {
       gooeyToast.error('Error al cargar catálogo', { description: 'Verifica la conexión con el servidor.', showTimestamp: false });

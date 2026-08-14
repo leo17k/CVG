@@ -277,14 +277,42 @@ export const getServicios = async (req, res) => {
 export const createServicio = async (req, res) => {
     try {
         const { codigo_servicio, nombre_servicio, descripcion } = req.body;
-        if (!codigo_servicio || !nombre_servicio) {
-            return res.status(400).json({ error: 'Código y Nombre son obligatorios' });
+        if (!nombre_servicio) {
+            return res.status(400).json({ error: 'El nombre del servicio es obligatorio' });
         }
+
+        const nombre = String(nombre_servicio).trim();
+        if (!nombre) {
+            return res.status(400).json({ error: 'El nombre del servicio no puede quedar vacío.' });
+        }
+
+        let codigo = String(codigo_servicio ?? '').trim();
+        if (!codigo) {
+            const [rows] = await pool.query(`
+                SELECT CAST(codigo_servicio AS UNSIGNED) AS ultimo
+                FROM servicios
+                WHERE codigo_servicio REGEXP '^[0-9]+$'
+                ORDER BY CAST(codigo_servicio AS UNSIGNED) DESC
+                LIMIT 1
+            `);
+            const ultimo = Number(rows?.[0]?.ultimo || 0);
+
+            if (ultimo >= 9999) {
+                return res.status(400).json({ error: 'Se alcanzó el máximo de 4 dígitos para el código del servicio. El código 9999 ya existe.' });
+            }
+
+            codigo = String(ultimo + 1).padStart(4, '0');
+        }
+
+        if (!/^\d{1,4}$/.test(codigo)) {
+            return res.status(400).json({ error: 'El código del servicio debe tener máximo 4 dígitos numéricos.' });
+        }
+
         const [result] = await pool.query(
             'INSERT INTO servicios (codigo_servicio, nombre_servicio, descripcion) VALUES (?, ?, ?)',
-            [codigo_servicio, nombre_servicio, descripcion]
+            [codigo, nombre, descripcion || null]
         );
-        res.status(201).json({ message: 'Servicio creado con éxito', id: result.insertId });
+        res.status(201).json({ message: 'Servicio creado con éxito', id: result.insertId, codigo_servicio: codigo });
     } catch (err) {
         if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'El código de servicio ya existe' });
         console.error(err);

@@ -1,6 +1,7 @@
 import mysql from "mysql2/promise";
 import picocolors from "picocolors";
 import dotenv from "dotenv";
+import { connectionCompras, statusconnectionCompras } from '../Acces/ConexionACCES.js';
 dotenv.config();
 const { red, green, bold, yellow, blueBright } = picocolors;
 export let statusconnectionsql = false
@@ -17,6 +18,48 @@ const conexionDATA = {
 
 const pool = mysql.createPool(conexionDATA)
 
+async function repairSolicitudForeignKeys() {
+  const connection = await pool.getConnection();
+
+  try {
+    const [badFkRows] = await connection.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'solicitudes_compra'
+         AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+
+    const badFk = badFkRows.find(row => row.REFERENCED_TABLE_NAME === 'detalles_solicitud');
+    if (badFk) {
+      console.warn(`[DB Repair] Eliminando FK incorrecta en solicitudes_compra: ${badFk.CONSTRAINT_NAME} -> ${badFk.REFERENCED_TABLE_NAME}`);
+      await connection.query(`ALTER TABLE solicitudes_compra DROP FOREIGN KEY \`${badFk.CONSTRAINT_NAME}\``);
+    }
+
+    const [goodFkRows] = await connection.query(
+      `SELECT CONSTRAINT_NAME
+       FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
+       WHERE CONSTRAINT_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'detalles_solicitud'
+         AND REFERENCED_TABLE_NAME = 'solicitudes_compra'`
+    );
+
+    if (!goodFkRows.length) {
+      console.warn('[DB Repair] Reconstruyendo FK correcta desde detalles_solicitud -> solicitudes_compra');
+      await connection.query(`
+        ALTER TABLE detalles_solicitud
+        ADD CONSTRAINT fk_detalle_solicitud
+        FOREIGN KEY (id_solicitud) REFERENCES solicitudes_compra(id_solicitud)
+        ON DELETE CASCADE ON UPDATE CASCADE
+      `);
+    }
+  } catch (error) {
+    console.error('[DB Repair] Error corrigiendo foreign keys de solicitudes:', error.message || error);
+  } finally {
+    connection.release();
+  }
+}
+
 export const getSolicitudTypeLetter = (tipo_solicitud = 'Compra') => {
   const normalized = String(tipo_solicitud || 'Compra').trim().toLowerCase();
   if (normalized === 'obra') return 'O';
@@ -30,6 +73,84 @@ export const buildSolicitudCode = (tipo_solicitud = 'Compra', year = getCurrentS
   return `${getSolicitudTypeLetter(tipo_solicitud)}-${year}-${counter}`;
 };
 
+const parseAccessNReqCode = (value) => {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const match = text.match(/^([CSO])-(\d{4})-(\d+)$/i);
+  if (!match) return null;
+
+  const prefix = match[1].toUpperCase();
+  const year = Number(match[2]);
+  const counter = Number(match[3]);
+
+  if (!Number.isFinite(year) || !Number.isFinite(counter)) return null;
+
+  const tipoMap = { C: 'Compra', O: 'Obra', S: 'Servicio' };
+  return { tipo: tipoMap[prefix] || null, year, counter };
+};
+
+async function syncSolicitudCounterWithAccess(tipo_solicitud = 'Compra', year = getCurrentSolicitudYear()) {
+  try {
+    const accessOk = await statusconnectionCompras();
+    if (!accessOk || !connectionCompras) return 0;
+
+    const prefix = getSolicitudTypeLetter(tipo_solicitud);
+    const rows = await connectionCompras.query(
+      `SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] LIKE '${prefix}%'`
+    );
+
+    if (!rows || rows.length === 0) return 0;
+
+    const accessCounters = rows
+      .map((row) => parseAccessNReqCode(row.NReqCompra ?? row['NReqCompra']))
+      .filter((value) => value && value.tipo === tipo_solicitud && Number(value.year) === Number(year))
+      .map((value) => Number(value.counter));
+
+    if (!accessCounters.length) return 0;
+    return Math.max(...accessCounters);
+  } catch (error) {
+    console.warn(`[Counter] No se pudo sincronizar el contador de ${tipo_solicitud} con Access: ${error.message || error}`);
+    return 0;
+  }
+}
+
+export async function syncSolicitudCountersFromAccess() {
+  const currentYear = getCurrentSolicitudYear();
+  const tipoSolicitudes = ['Compra', 'Servicio', 'Obra'];
+  const updates = {};
+
+  for (const tipo of tipoSolicitudes) {
+    const accessMaxCounter = await syncSolicitudCounterWithAccess(tipo, currentYear);
+    if (!accessMaxCounter) continue;
+
+    const [rows] = await pool.query(
+      `SELECT contador FROM solicitud_counters WHERE tipo_solicitud = ? AND anio = ? LIMIT 1 FOR UPDATE`,
+      [tipo, currentYear]
+    );
+
+    const currentCounter = rows.length > 0 ? Number(rows[0].contador || 0) : 0;
+    if (accessMaxCounter <= currentCounter) continue;
+
+    if (rows.length > 0) {
+      await pool.query(
+        `UPDATE solicitud_counters SET contador = ?, actualizado_en = CURRENT_TIMESTAMP WHERE tipo_solicitud = ? AND anio = ?`,
+        [accessMaxCounter, tipo, currentYear]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO solicitud_counters (tipo_solicitud, anio, contador) VALUES (?, ?, ?)`,
+        [tipo, currentYear, accessMaxCounter]
+      );
+    }
+
+    updates[tipo] = accessMaxCounter;
+  }
+
+  return updates;
+}
+
 export async function getNextSolicitudCounter(tipo_solicitud = 'Compra') {
   const year = getCurrentSolicitudYear();
   const connection = await pool.getConnection();
@@ -42,16 +163,24 @@ export async function getNextSolicitudCounter(tipo_solicitud = 'Compra') {
       [tipo_solicitud, year]
     );
 
+    const accessMaxCounter = await syncSolicitudCounterWithAccess(tipo_solicitud, year);
+    const currentCounter = rows.length > 0 ? Number(rows[0].contador || 0) : 0;
+    const baseCounter = Math.max(currentCounter, accessMaxCounter);
+    const nextCounter = baseCounter + 1;
+
     if (rows.length === 0) {
       await connection.query(
-        `INSERT INTO solicitud_counters (tipo_solicitud, anio, contador) VALUES (?, ?, 1)`,
-        [tipo_solicitud, year]
+        `INSERT INTO solicitud_counters (tipo_solicitud, anio, contador) VALUES (?, ?, ?)`,
+        [tipo_solicitud, year, nextCounter]
       );
       await connection.commit();
-      return { counter: 1, codigo: buildSolicitudCode(tipo_solicitud, year, 1) };
+      return { counter: nextCounter, codigo: buildSolicitudCode(tipo_solicitud, year, nextCounter) };
     }
 
-    const nextCounter = Number(rows[0].contador || 0) + 1;
+    if (accessMaxCounter > currentCounter) {
+      console.log(`[Counter] Ajustando contador ${tipo_solicitud} ${year} con Access: ${currentCounter} -> ${accessMaxCounter}. Siguiente código: ${nextCounter}`);
+    }
+
     await connection.query(
       `UPDATE solicitud_counters SET contador = ?, actualizado_en = CURRENT_TIMESTAMP WHERE tipo_solicitud = ? AND anio = ?`,
       [nextCounter, tipo_solicitud, year]
@@ -71,6 +200,8 @@ try {
   const connection = await pool.getConnection();
   statusconnectionsql = true
   console.log(green("Conexión a la base de datos exitosa."));
+
+  await repairSolicitudForeignKeys();
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS solicitud_counters (

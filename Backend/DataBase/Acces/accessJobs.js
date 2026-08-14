@@ -41,6 +41,16 @@ const esc = (str) => {
   return String(str).replace(/'/g, "''");
 };
 
+const sanitizeAccessText = (value, maxLength = 255) => {
+  if (value === null || value === undefined) return '';
+  let text = String(value).trim();
+  if (!text) return '';
+  text = text.replace(/\r?\n/g, ' ');
+  text = text.replace(/\t/g, ' ');
+  text = text.slice(0, maxLength);
+  return text;
+};
+
 const num = (v, defaultVal = 0) => {
   if (v === null || v === undefined) return defaultVal;
   if (typeof v === 'number' && !Number.isNaN(v)) return v;
@@ -52,12 +62,12 @@ const num = (v, defaultVal = 0) => {
 const getAccessRequestType = (tipo) => {
   switch (tipo) {
     case 'Compra':
-      return { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' };
+      return { prefix: 'C', tipoRC: 'CO', detalleTipo: 'SERV' };
     case 'Obra':
-      return { prefix: 'O', tipoRC: 'OB', detalleTipo: '95884' };
+      return { prefix: 'O', tipoRC: 'SV', detalleTipo: 'SERV' };
     case 'Servicio':
     default:
-      return { prefix: 'S', tipoRC: 'SV', detalleTipo: '95884' };
+      return { prefix: 'S', tipoRC: 'SV', detalleTipo: 'SERV' };
   }
 };
 
@@ -160,6 +170,7 @@ export async function sendSolicitudToAccess(id_solicitud) {
       String(s.id_solicitud),
       `${accessType.prefix}-${s.id_solicitud}`,
       `${accessType.prefix}${s.id_solicitud}`,
+      `${accessType.prefix}-${new Date(s.fecha_creacion || Date.now()).getFullYear()}-${s.id_solicitud}`,
       String(s.codigo_solicitud || ''),
       NReqCompra
     ].filter(Boolean));
@@ -341,17 +352,36 @@ export async function sendSolicitudToAccess(id_solicitud) {
       WHERE d.id_solicitud = ?
     `, [id_solicitud]);
 
+    let detailInsertError = null;
+
     for (let index = 0; index < details.length; index++) {
       const d = details[index];
-      const NRenglon = index + 1;
-      const CodRenglon = d.codigo_servicio || d.codigo_producto || '00001';
-      const Descripcion = d.nombre_servicio || d.nombre_producto || 'SIN DESCRIPCION';
-      const Unidad = d.unidad_producto || 'C/U';
+      const NRenglon = Math.min(index + 1, 99999);
+      const rawCodRenglon = String(d.codigo_servicio || d.codigo_producto || '00001').trim();
+      const CodRenglon = sanitizeAccessText(rawCodRenglon.slice(0, 4), 4);
+      const Descripcion = sanitizeAccessText(d.nombre_servicio || d.nombre_producto || 'SIN DESCRIPCION', 255);
+      const Unidad = sanitizeAccessText(d.unidad_producto || 'C/U', 20);
       const Cantidad = num(d.cantidad, 1);
       const tipoEsServicioObra = ['Servicio', 'Obra'].includes(tipoSolicitudNormalizado)
         || (!d.id_producto && !!d.id_servicio)
         || (!d.codigo_producto && !!d.codigo_servicio);
-      const Cod_Tipo = tipoEsServicioObra ? '95884' : (d.categoria_producto || accessType.detalleTipo);
+      const Cod_Tipo = sanitizeAccessText(tipoEsServicioObra ? 'SERV' : (d.categoria_producto || accessType.detalleTipo), 4);
+
+      const payload = {
+        id_solicitud,
+        NReqCompra,
+        NRenglon,
+        CodRenglon,
+        Descripcion,
+        Unidad,
+        Cantidad,
+        Cod_Tipo,
+        tipoSolicitudNormalizado,
+        row: d
+      };
+
+      console.log('[AccessJobs][DEBUG] payload detalle antes de INSERT:', payload);
+      appendLog('[AccessJobs][DEBUG] payload detalle antes de INSERT: ' + JSON.stringify(payload));
 
       const nrenglonSql = nrenglonIsNumeric ? `${NRenglon}` : `'${NRenglon}'`;
       const cantidadSql = cantidadIsNumeric ? `${Cantidad}` : `'${Cantidad}'`;
@@ -369,11 +399,33 @@ export async function sendSolicitudToAccess(id_solicitud) {
           '${esc(Cod_Tipo)}'
         )
       `;
+
+      console.log('[AccessJobs][DEBUG] SQL detalle a ejecutar:', insertDetailQuery);
+      appendLog('[AccessJobs][DEBUG] SQL detalle a ejecutar: ' + insertDetailQuery);
+
       try {
         await connectionCompras.execute(insertDetailQuery);
       } catch (dErr) {
+        console.error('[AccessJobs][DEBUG] Error insertando detalle:', {
+          NReqCompra,
+          NRenglon,
+          CodRenglon,
+          Descripcion,
+          Unidad,
+          Cantidad,
+          Cod_Tipo,
+          sql: insertDetailQuery,
+          error: dErr?.message || dErr
+        });
         appendLog(`[AccessJobs] Error insertando detalle ${NReqCompra} renglon=${NRenglon}: ${dErr.message || dErr}`);
+        appendLog('[AccessJobs][DEBUG] SQL fallido: ' + insertDetailQuery);
+        detailInsertError = dErr;
+        break;
       }
+    }
+
+    if (detailInsertError) {
+      throw detailInsertError;
     }
 
     appendLog(`[AccessJobs] Sincronización completada para solicitud ${id_solicitud} -> ${NReqCompra}`);

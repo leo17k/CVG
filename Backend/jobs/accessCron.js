@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import pool from '../DataBase/Mysql/ConexionSQL.js';
+import pool, { syncSolicitudCountersFromAccess } from '../DataBase/Mysql/ConexionSQL.js';
 import { incrementalMigrationSince, backupAccessFiles } from '../DataBase/Acces/accessJobs.js';
 import { syncProductosYStockCondicional, MigrarUnidadesAProductos } from '../DataBase/Migracion/MigracionACCES-MYSQL.js';
 
@@ -46,15 +46,9 @@ export function startAccessJobs() {
     // Job para sincronización/migración periódica
     const migrJob = cron.schedule(migrationCron, async () => {
       console.log(`[AccessCron] [Job] Iniciando ejecución periódica de sincronización...`);
-      
-      // 1. Migración incremental de solicitudes (MySQL -> Access)
-      console.log(`[AccessCron] [Job] Ejecutando exportación incremental de solicitudes de compra (MySQL -> Access) de las últimas ${migrationHours} hora(s)`);
-      try {
-        await incrementalMigrationSince(migrationHours);
-        console.log(`[AccessCron] [Job] Exportación incremental de solicitudes de compra finalizada.`);
-      } catch (e) {
-        console.error('[AccessCron] [Job] Error en exportación incremental de solicitudes:', e.message || e);
-      }
+
+      // 1. Exportación de solicitudes a Access: solo cuando la solicitud se aprueba
+      console.log(`[AccessCron] [Job] Exportación automática de solicitudes a Access deshabilitada. La sincronización ocurre solo al aprobar la solicitud.`);
 
       // 2. Sincronización condicional de productos y stock (Access -> MySQL)
       console.log(`[AccessCron] [Job] Ejecutando sincronización condicional de productos y stock (Access -> MySQL)`);
@@ -112,25 +106,26 @@ export function startAccessJobs() {
         if (result.reset) {
           console.log(`[AccessCron] [Counter] Reinicio automático ejecutado al arrancar para: ${result.types?.join(', ') || 'n/a'}`);
         }
+
+        const accessCounters = await syncSolicitudCountersFromAccess();
+        if (Object.keys(accessCounters).length) {
+          console.log(`[AccessCron] [Counter] Contadores sincronizados con Access al iniciar: ${JSON.stringify(accessCounters)}`);
+        }
       } catch (e) {
         console.error('[AccessCron] [Counter] Error al validar reinicio automático al iniciar:', e.message || e);
       }
     })();
 
-    // Ejecutar una vez al arrancar para sincronizar cambios recientes
+    // Ejecutar una vez al arrancar para sincronizar cambios recientes del catálogo
     (async () => {
       try {
-        console.log('[AccessCron] [Inicio] Primera ejecución: Sincronización inicial al arrancar el servidor');
-        
-        // 1. Exportación incremental de solicitudes inicial
-        console.log(`[AccessCron] [Inicio] Ejecutando exportación incremental de solicitudes de compra (MySQL -> Access) de las últimas ${migrationHours} hora(s)`);
-        await incrementalMigrationSince(migrationHours);
-        
-        // 2. Sincronización condicional de productos inicial
+        console.log('[AccessCron] [Inicio] Primera ejecución: sincronización inicial del catálogo al arrancar el servidor');
+
+        // Sincronización condicional de productos inicial
         console.log(`[AccessCron] [Inicio] Ejecutando sincronización condicional de productos y stock (Access -> MySQL)`);
         const res = await syncProductosYStockCondicional();
 
-        // 3. Sincronización de unidades de medida inicial
+        // Sincronización de unidades de medida inicial
         console.log(`[AccessCron] [Inicio] Ejecutando sincronización de unidades de medida (Access -> MySQL)`);
         await MigrarUnidadesAProductos();
 

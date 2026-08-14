@@ -124,6 +124,10 @@ const insertarSolicitud = async (
             });
         }
 
+        if (response?.data) {
+            window.dispatchEvent(new CustomEvent('solicitud-creada', { detail: response.data }));
+        }
+
         return response.data;
     } catch (error) {
         console.error('Error al insertar solicitud:', error);

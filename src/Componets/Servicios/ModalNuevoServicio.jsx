@@ -13,13 +13,48 @@ export default function ModalNuevoServicio({ isOpen, onClose, onSuccess }) {
     });
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
+    const [codigoManual, setCodigoManual] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setFormData({ codigo_servicio: '', nombre_servicio: '', descripcion: '' });
+            setCodigoManual(false);
             setErrors({});
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        const cargarCodigoAutomatico = async () => {
+            if (!isOpen || codigoManual) return;
+
+            try {
+                const res = await fetch(`http://${window.location.hostname}:5000/Servicios`, { credentials: 'include' });
+                const data = await res.json().catch(() => ({ data: [] }));
+                const items = Array.isArray(data?.data) ? data.data : [];
+                const maxCodigo = items.reduce((max, item) => {
+                    const value = Number(String(item.codigo_servicio || '').trim());
+                    if (Number.isFinite(value) && value > max) return value;
+                    return max;
+                }, 0);
+
+                if (maxCodigo >= 9999) {
+                    setFormData(prev => ({ ...prev, codigo_servicio: '' }));
+                    setErrors(prev => ({
+                        ...prev,
+                        codigo_servicio: 'Se alcanzó el máximo de 4 dígitos. El código 9999 ya existe.'
+                    }));
+                    return;
+                }
+
+                const nextCode = String((maxCodigo || 0) + 1).padStart(4, '0');
+                setFormData(prev => ({ ...prev, codigo_servicio: nextCode }));
+            } catch {
+                setFormData(prev => ({ ...prev, codigo_servicio: '0001' }));
+            }
+        };
+
+        cargarCodigoAutomatico();
+    }, [isOpen, codigoManual]);
 
     const handleFormClose = () => {
         setErrors({});
@@ -39,15 +74,20 @@ export default function ModalNuevoServicio({ isOpen, onClose, onSuccess }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
+        const codigo = String(formData.codigo_servicio ?? '').trim();
+        const codigoValido = /^\d{1,4}$/.test(codigo);
+
         const newErrors = {};
-        if (!formData.codigo_servicio?.trim()) newErrors.codigo_servicio = "El código identificador es obligatorio";
+        if (codigoManual && !codigo) newErrors.codigo_servicio = "El código identificador es obligatorio";
+        if (codigoManual && codigo && !codigoValido) newErrors.codigo_servicio = "El código debe ser numérico y máximo 4 dígitos";
+        if (!codigoManual && !codigo) newErrors.codigo_servicio = 'No hay un código disponible. Ya se alcanzó el máximo permitido.';
         if (!formData.nombre_servicio?.trim()) newErrors.nombre_servicio = "El nombre del servicio es obligatorio";
         if (!formData.descripcion?.trim()) newErrors.descripcion = "La descripción es obligatoria";
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            toast.error('Campos inválidos', { description: 'Por favor, complete todos los campos obligatorios.' });
+            toast.error('Campos inválidos', { description: 'Por favor, revise el código y los campos obligatorios.' });
             return;
         }
 
@@ -55,11 +95,16 @@ export default function ModalNuevoServicio({ isOpen, onClose, onSuccess }) {
         setLoading(true);
 
         try {
+            const payload = {
+                ...formData,
+                codigo_servicio: codigoManual ? codigo : ''
+            };
+
             const apiUrl = `http://${window.location.hostname}:5000/Servicios`;
             const resp = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify(payload),
                 credentials: 'include'
             });
 
@@ -97,17 +142,49 @@ export default function ModalNuevoServicio({ isOpen, onClose, onSuccess }) {
                     {/* Formulario */}
                     <form onSubmit={handleSubmit} className="p-6 space-y-5">
                         <div className="space-y-4">
-                            {/* Campo Código */}
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nextManual = !codigoManual;
+                                        setCodigoManual(nextManual);
+                                        if (nextManual) {
+                                            setFormData(prev => ({ ...prev, codigo_servicio: '' }));
+                                            setErrors(prev => {
+                                                const newErrors = { ...prev };
+                                                delete newErrors.codigo_servicio;
+                                                return newErrors;
+                                            });
+                                        } else {
+                                            setErrors(prev => {
+                                                const newErrors = { ...prev };
+                                                delete newErrors.codigo_servicio;
+                                                return newErrors;
+                                            });
+                                            const res = Number(String(formData.codigo_servicio || '').trim()) || 0;
+                                            const nextCode = String(Math.min(res + 1, 9999)).padStart(4, '0');
+                                            setFormData(prev => ({ ...prev, codigo_servicio: nextCode }));
+                                        }
+                                    }}
+                                    className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${codigoManual ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    {codigoManual ? 'Cambiar a código automático' : 'Código manual'}
+                                </button>
+                            </div>
+
                             <Input
                                 label="Código Identificador"
                                 name="codigo_servicio"
-                                placeholder="Ej: SERV-001"
+                                placeholder={codigoManual ? 'Ej: 0007' : 'Se generará automáticamente'}
                                 value={formData.codigo_servicio}
-                                onChange={(e) => handleInputChange('codigo_servicio', e.target.value)}
+                                disabled={!codigoManual}
+                                onChange={(e) => {
+                                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                    handleInputChange('codigo_servicio', value);
+                                }}
                                 error={errors.codigo_servicio}
                             />
 
-                            {/* Campo Nombre */}
                             <Input
                                 label="Nombre del Servicio"
                                 name="nombre_servicio"

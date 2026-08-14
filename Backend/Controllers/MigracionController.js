@@ -204,9 +204,9 @@ export const exportToAccess = async (req, res) => {
 
     for (const s of solicitudes) {
       const accessType = {
-        Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' },
-        Obra: { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' },
-        Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' },
+        Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: '95884' },
+        Obra: { prefix: 'O', tipoRC: 'SV', detalleTipo: '95884' },
+        Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: '95884' },
       }[(s.tipo_solicitud) || 'Servicio'];
       const typePrefix = accessType.prefix;
       const NReqCompra = `${typePrefix}-${s.id_solicitud}`;
@@ -251,9 +251,9 @@ export const exportToAccess = async (req, res) => {
         const estadoRC = ['Aprovadas', 'Finalizado'].includes(s.estado_nombre) ? 'AP' : 'IN';
         const prioridadRC = s.prioridad === 'Alta' ? 1 : (s.prioridad === 'Media' ? 2 : 3);
         const accessType = {
-          Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' },
-          Obra: { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' },
-          Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' },
+          Compra: { prefix: 'C', tipoRC: 'CO', detalleTipo: '95884' },
+          Obra: { prefix: 'O', tipoRC: 'SV', detalleTipo: '95884' },
+          Servicio: { prefix: 'S', tipoRC: 'SV', detalleTipo: '95884' },
         }[(s.tipo_solicitud) || 'Servicio'];
         const tipoRC = accessType.tipoRC;
 

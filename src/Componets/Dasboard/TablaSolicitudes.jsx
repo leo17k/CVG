@@ -222,10 +222,10 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
         const isAprobado = String(newStatus).toLowerCase().includes('aprob') || String(newStatus).toLowerCase().includes('aprov');
         setProcessSuccessMessage(isAprobado ? '¡Solicitud Aprobada!' : 'Solicitud actualizada');
 
-        // Retrasamos el cierre brusco para mostrar la animación suave de éxito en el modal
-
+        // Cierra de inmediato en la primera respuesta exitosa del backend,
+        // antes de refrescar la tabla o esperar estados intermedios.
         setModalOpen(false);
-
+        setSelected(null);
 
         if (onRefresh) onRefresh();
         setIsProcessingLocal(false);
@@ -783,8 +783,13 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                             </>
                           ) : (
                             <>
-                              <p className="text-sm font-bold text-slate-800 mb-1">Servicio #{item.id_servicio}</p>
+                              <p className="text-sm font-bold text-slate-800 mb-1 leading-snug">{item.nombre_item || `Servicio #${item.id_servicio}`}</p>
+                              <p className="text-xs text-slate-500 mb-3 line-clamp-2">{item.descripcion_detalle || 'Sin descripción del servicio.'}</p>
                               <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                                <div className="text-center">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Código</p>
+                                  <p className="text-xs font-black text-blue-700 font-mono">{item.codigo_item || '—'}</p>
+                                </div>
                                 <div className="text-center">
                                   <p className="text-[9px] font-bold text-slate-400 uppercase">Cantidad</p>
                                   <p className="text-xs font-black text-slate-700">{item.cantidad}</p>
