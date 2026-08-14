@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import mysqldump from 'mysqldump';
 // Importamos mysql2 para ejecutar la restauración de forma directa por código
 import mysql from 'mysql2/promise';
+import pool from '../DataBase/Mysql/ConexionSQL.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -151,5 +152,108 @@ export const restoreBackup = async (req, res) => {
     });
   } finally {
     if (connection) await connection.end();
+  }
+};
+
+export const getSystemConfig = async (req, res) => {
+  if (!esAdmin(req)) return res.status(403).json({ error: 'No autorizado.' });
+
+  try {
+    const [rows] = await pool.query(
+      'SELECT clave, valor, descripcion, actualizado_en FROM sistema_configuracion ORDER BY clave ASC'
+    );
+    return res.status(200).json({ ok: true, data: rows });
+  } catch (error) {
+    console.error('[BackupController] Error leyendo sistema_configuracion:', error.message);
+    return res.status(500).json({ error: 'No se pudo leer la configuración del sistema.' });
+  }
+};
+
+export const updateSystemConfig = async (req, res) => {
+  if (!esAdmin(req)) return res.status(403).json({ error: 'No autorizado.' });
+
+  const { clave, valor, descripcion } = req.body || {};
+  if (!clave || typeof valor === 'undefined') {
+    return res.status(400).json({ error: 'Faltan clave o valor.' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO sistema_configuracion (clave, valor, descripcion)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor), descripcion = VALUES(descripcion)`,
+      [clave, String(valor), descripcion || null]
+    );
+
+    return res.status(200).json({ ok: true, message: 'Configuración actualizada.' });
+  } catch (error) {
+    console.error('[BackupController] Error guardando sistema_configuracion:', error.message);
+    return res.status(500).json({ error: 'No se pudo guardar la configuración.' });
+  }
+};
+
+export const getSolicitudCounters = async (req, res) => {
+  if (!esAdmin(req)) return res.status(403).json({ error: 'No autorizado.' });
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT tipo_solicitud, anio, contador, actualizado_en
+       FROM solicitud_counters
+       ORDER BY anio DESC, FIELD(tipo_solicitud, 'Compra','Servicio','Obra') ASC`
+    );
+    return res.status(200).json({ ok: true, data: rows });
+  } catch (error) {
+    console.error('[BackupController] Error leyendo contador de solicitudes:', error.message);
+    return res.status(500).json({ error: 'No se pudo leer el contador de solicitudes.' });
+  }
+};
+
+export const setSolicitudCounter = async (req, res) => {
+  if (!esAdmin(req)) return res.status(403).json({ error: 'No autorizado.' });
+
+  const { tipo_solicitud = 'Compra', anio = new Date().getFullYear(), contador = 0 } = req.body || {};
+
+  if (!tipo_solicitud || !anio) {
+    return res.status(400).json({ error: 'Tipo de solicitud y año son obligatorios.' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO solicitud_counters (tipo_solicitud, anio, contador)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE contador = VALUES(contador), actualizado_en = CURRENT_TIMESTAMP`,
+      [tipo_solicitud, Number(anio), Number(contador)]
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: `Contador de ${tipo_solicitud} para ${anio} ajustado a ${contador}.`
+    });
+  } catch (error) {
+    console.error('[BackupController] Error configurando contador:', error.message);
+    return res.status(500).json({ error: 'No se pudo configurar el contador.' });
+  }
+};
+
+export const resetSolicitudCounter = async (req, res) => {
+  if (!esAdmin(req)) return res.status(403).json({ error: 'No autorizado.' });
+
+  const { tipo_solicitud = 'Compra', anio = new Date().getFullYear() } = req.body || {};
+
+  try {
+    await pool.query(
+      `INSERT INTO solicitud_counters (tipo_solicitud, anio, contador)
+       VALUES (?, ?, 0)
+       ON DUPLICATE KEY UPDATE contador = 0, actualizado_en = CURRENT_TIMESTAMP`,
+      [tipo_solicitud, Number(anio)]
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: `Contador de ${tipo_solicitud} reiniciado para ${anio}.`
+    });
+  } catch (error) {
+    console.error('[BackupController] Error reiniciando contador:', error.message);
+    return res.status(500).json({ error: 'No se pudo reiniciar el contador.' });
   }
 };

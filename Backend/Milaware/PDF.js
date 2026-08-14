@@ -527,7 +527,7 @@ function drawInfoCards(doc, sol, startY) {
    let y = startY;
    let x = ML;
    const cards = [
-      { label: 'Solicitud N°', value: `#${sol.id_solicitud}` },
+      { label: 'Solicitud', value: sol.codigo_solicitud || `#${sol.id_solicitud}` },
       { label: 'Prioridad', value: sol.prioridad || 'Media', colorBadge: true },
       { label: 'Estado', value: sol.estado_nombre || 'Pendiente', colorBadge: true },
       { label: 'Fecha', value: new Date(sol.fecha_creacion).toLocaleDateString('es-VE') }

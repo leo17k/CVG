@@ -21,6 +21,11 @@ router.get('/api/backup/list', Backup.listBackups);
 // ?destino=server   →  guarda .sql en /backups con timestamp
 // ?destino=download →  streaming directo al navegador
 router.get('/api/backup/export', Backup.exportBackup);
+router.get('/api/configuracion/sistema', Backup.getSystemConfig);
+router.put('/api/configuracion/sistema', Backup.updateSystemConfig);
+router.get('/api/configuracion/solicitudes', Backup.getSolicitudCounters);
+router.put('/api/configuracion/solicitudes', Backup.setSolicitudCounter);
+router.post('/api/configuracion/solicitudes/reset', Backup.resetSolicitudCounter);
 
 // ── Restauración ─────────────────────────────────────────────────────────────
 // Subir archivo SQL externo

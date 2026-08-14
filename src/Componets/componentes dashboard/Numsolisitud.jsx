@@ -173,6 +173,8 @@ export const Boton = ({ onRefresh }) => {
   const [showSolProd, setShowSolProd] = useState(false);
   const [solProd, setSolProd] = useState({ nombre: '', descripcion: '', cantidad: 1, id_categoria: '' });
   const [sendingSolProd, setSendingSolProd] = useState(false);
+  const justPdfInputId = useRef(`justificacion-pdf-${Math.random().toString(36).slice(2)}`);
+  const reqPdfInputId = useRef(`requerimientos-pdf-${Math.random().toString(36).slice(2)}`);
 
   // Cargar usuarios si es admin
   useEffect(() => {
@@ -366,7 +368,7 @@ export const Boton = ({ onRefresh }) => {
           <div id="new-request-modal" data-tour-root="new-request" className="flex flex-col h-full bg-slate-50">
 
             {/* Stepper */}
-            <div data-tour="new-request-stepper" className="px-8 py-5 bg-white border-b border-slate-100">
+            <div data-tour="new-request-stepper" className="px-8  py-5 bg-white border-b border-slate-100">
               <div className="max-w-sm mx-auto flex items-center">
                 {STEPS.map((label, i) => {
                   const n = i + 1, done = step > n, active = step === n;
@@ -385,7 +387,7 @@ export const Boton = ({ onRefresh }) => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-8 max-sm:px-1.5">
               <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* STEP 1 — Tipo de solicitud + solicitante si admin */}
@@ -480,6 +482,7 @@ export const Boton = ({ onRefresh }) => {
                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">{selectedItems.length} ítem(s) seleccionado(s)</p>
                               {selectedItems.map((p, i) => {
                                 const itemId = p.id_producto || p.id_servicio;
+                                const isServicio = tipoSolicitud === 'Servicio' || !!p.id_servicio;
                                 return (
                                   <div key={i} data-tour={`new-request-selected-${i}`} className="bg-white p-3.5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
                                     <div className="flex items-center gap-3">
@@ -491,17 +494,26 @@ export const Boton = ({ onRefresh }) => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1">
-                                        <button type="button" onClick={() => updateQty(itemId, -1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">−</button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateQty(itemId, -1)}
+                                          disabled={isServicio}
+                                          className={`w-6 h-6 flex items-center justify-center font-black text-base transition-colors ${isServicio ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-slate-900'}`}>
+                                          −
+                                        </button>
                                         <input
                                           data-tour={`new-request-qty-${itemId}`}
                                           type="number"
                                           min={1}
-                                          value={p.cantidad}
+                                          value={isServicio ? 1 : p.cantidad}
+                                          readOnly={isServicio}
                                           onChange={(e) => setQty(itemId, e.target.value)}
                                           onBlur={() => { if (!p.cantidad || Number(p.cantidad) < 1) setQty(itemId, 1); }}
-                                          className="w-12 text-sm text-center bg-transparent outline-none font-black"
+                                          className={`w-12 text-sm text-center bg-transparent outline-none font-black ${isServicio ? 'text-slate-400' : ''}`}
                                         />
-                                        <button type="button" onClick={() => updateQty(itemId, 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">+</button>
+                                        {!isServicio && (
+                                          <button type="button" onClick={() => updateQty(itemId, 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 font-black text-base transition-colors">+</button>
+                                        )}
                                       </div>
                                       <button type="button" onClick={() => removeItem(itemId)} className="text-rose-400 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">
                                         <Trash2 size={15} />
@@ -526,7 +538,43 @@ export const Boton = ({ onRefresh }) => {
 
                     {tipoSolicitud === 'Obra' && (
                       <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+                          <div className="flex items-center justify-between gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación técnica</p>
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-[220px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJustModo('texto');
+                              if (errors.justificacion_pdf) {
+                                setErrors(prev => {
+                                  const newErr = { ...prev };
+                                  delete newErr.justificacion_pdf;
+                                  return newErr;
+                                });
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${justModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
+                          >
+                            Texto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJustModo('archivo');
+                              if (errors.justificacion) {
+                                setErrors(prev => {
+                                  const newErr = { ...prev };
+                                  delete newErr.justificacion;
+                                  return newErr;
+                                });
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${justModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
+                          >
+                            PDF
+                          </button>
+                        </div>
+                      </div>
                         {justModo === 'texto' ? (
                           <TextArea
                             label="Escribe la justificación técnica"
@@ -546,7 +594,7 @@ export const Boton = ({ onRefresh }) => {
                           />
                         ) : (
                           <div
-                            onClick={() => document.getElementById('pdf-up').click()}
+                            onClick={() => document.getElementById(justPdfInputId.current)?.click()}
                             className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all ${errors.justificacion_pdf ? 'border-red-500 bg-red-50/30' : 'border-slate-200'}`}>
                             <Upload size={32} className={errors.justificacion_pdf ? 'text-red-400' : 'text-slate-300'} />
                             <span className={`text-xs font-bold text-center ${errors.justificacion_pdf ? 'text-red-600' : 'text-slate-400'}`}>
@@ -556,7 +604,7 @@ export const Boton = ({ onRefresh }) => {
                               <span className="text-xs font-bold text-red-500 block">{errors.justificacion_pdf}</span>
                             )}
                             <input
-                              id="pdf-up"
+                              id={justPdfInputId.current}
                               type="file"
                               hidden
                               accept=".pdf"
@@ -575,20 +623,22 @@ export const Boton = ({ onRefresh }) => {
                             />
                           </div>
                         )}
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Requerimientos técnicos</p>
-                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                          <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
-                          <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Adjuntar PDF</button>
+                        <div className="flex items-center justify-between gap-3 mt-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requerimientos técnicos</p>
+                          <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-[220px]">
+                            <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
+                            <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>PDF</button>
+                          </div>
                         </div>
                         {reqModo === 'texto'
                           ? <TextArea label="Escribe los requerimientos técnicos" name="requerimientos" defaultValue={requerimientos} onChange={e => setRequerimientos(e.target.value)} />
                           : (
-                            <div onClick={() => document.getElementById('req-pdf-up').click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
+                            <div onClick={() => document.getElementById(reqPdfInputId.current)?.click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
                               <Upload size={32} className="text-slate-300" />
                               <span className="text-xs font-bold text-slate-400 text-center">
                                 {reqFile ? `✅ ${reqFile.name}` : 'Haz clic para subir un PDF de requerimientos'}
                               </span>
-                              <input id="req-pdf-up" type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
+                              <input id={reqPdfInputId.current} type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
                             </div>
                           )}
                       </div>
@@ -600,7 +650,44 @@ export const Boton = ({ onRefresh }) => {
                 {step === 3 && (
                   <>
                     <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación técnica</p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Justificación técnica</p>
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-[220px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJustModo('texto');
+                              if (errors.justificacion_pdf) {
+                                setErrors(prev => {
+                                  const newErr = { ...prev };
+                                  delete newErr.justificacion_pdf;
+                                  return newErr;
+                                });
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${justModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
+                          >
+                            Texto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJustModo('archivo');
+                              if (errors.justificacion) {
+                                setErrors(prev => {
+                                  const newErr = { ...prev };
+                                  delete newErr.justificacion;
+                                  return newErr;
+                                });
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${justModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}
+                          >
+                            PDF
+                          </button>
+                        </div>
+                      </div>
+
                       {justModo === 'texto' ? (
                         <TextArea
                           label="Escribe la justificación técnica"
@@ -620,7 +707,7 @@ export const Boton = ({ onRefresh }) => {
                         />
                       ) : (
                         <div
-                          onClick={() => document.getElementById('pdf-up').click()}
+                          onClick={() => document.getElementById(justPdfInputId.current)?.click()}
                           className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all ${errors.justificacion_pdf ? 'border-red-500 bg-red-50/30' : 'border-slate-200'}`}>
                           <Upload size={32} className={errors.justificacion_pdf ? 'text-red-400' : 'text-slate-300'} />
                           <span className={`text-xs font-bold text-center ${errors.justificacion_pdf ? 'text-red-600' : 'text-slate-400'}`}>
@@ -630,7 +717,7 @@ export const Boton = ({ onRefresh }) => {
                             <span className="text-xs font-bold text-red-500 block">{errors.justificacion_pdf}</span>
                           )}
                           <input
-                            id="pdf-up"
+                            id={justPdfInputId.current}
                             type="file"
                             hidden
                             accept=".pdf"
@@ -649,20 +736,22 @@ export const Boton = ({ onRefresh }) => {
                           />
                         </div>
                       )}
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Requerimientos técnicos</p>
-                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                        <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
-                        <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Adjuntar PDF</button>
+                      <div className="flex items-center justify-between gap-3 mt-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requerimientos técnicos</p>
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-[220px]">
+                          <button type="button" onClick={() => setReqModo('texto')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Texto</button>
+                          <button type="button" onClick={() => setReqModo('archivo')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>PDF</button>
+                        </div>
                       </div>
                       {reqModo === 'texto'
                         ? <TextArea label="Escribe los requerimientos técnicos" name="requerimientos" defaultValue={requerimientos} onChange={e => setRequerimientos(e.target.value)} />
                         : (
-                          <div onClick={() => document.getElementById('req-pdf-up').click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
+                          <div onClick={() => document.getElementById(reqPdfInputId.current)?.click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
                             <Upload size={32} className="text-slate-300" />
                             <span className="text-xs font-bold text-slate-400 text-center">
                               {reqFile ? `✅ ${reqFile.name}` : 'Haz clic para subir un PDF de requerimientos'}
                             </span>
-                            <input id="req-pdf-up" type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
+                            <input id={reqPdfInputId.current} type="file" hidden accept=".pdf" onChange={e => setReqFile(e.target.files[0])} />
                           </div>
                         )}
                     </div>

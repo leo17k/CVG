@@ -224,7 +224,7 @@ const MessageItem = ({ chat, authUser, onSelect }) => {
   const isGroup = !!chat.isGroup || !!chat.idSolicitud || !!chat.id_solicitud;
 
   const contact = isGroup
-    ? { id: chat.chatId, name: chat.name || chat.referencia_solicitud || `Solicitud #${chat.id_solicitud || chat.idSolicitud}`, avatar: chat.avatar, isGroup: true, idSolicitud: chat.idSolicitud || chat.id_solicitud }
+    ? { id: chat.chatId, name: chat.name || chat.referencia_solicitud || `Solicitud ${chat.codigo_solicitud || `#${chat.id_solicitud || chat.idSolicitud}`}`, avatar: chat.avatar, isGroup: true, idSolicitud: chat.idSolicitud || chat.id_solicitud }
     : (Number(myId) === Number(chat.to?.id) ? chat.from : chat.to);
 
   const isMe = !isGroup && Number(myId) === Number(chat.from?.id);

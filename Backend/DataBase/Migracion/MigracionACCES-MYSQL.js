@@ -114,6 +114,36 @@ async function Migracionuni() {
         console.error("❌ Error durante la migración:", error);
     }
 }
+async function sincronizarCategoriasDesdeAccess(connectionMysql) {
+    const rows = await connection.query('SELECT codigo_tipo, Descripcion_tipo FROM tipoRepuesto');
+
+    if (!rows || rows.length === 0) {
+        console.log('⚠️ No hay categorías en Access para sincronizar.');
+        return { insertadas: 0 };
+    }
+
+    const valores = rows
+        .filter(row => row && String(row.codigo_tipo ?? '').trim() !== '')
+        .map(row => [
+            String(row.codigo_tipo).trim(),
+            String(row.Descripcion_tipo || 'SIN DESCRIPCION').trim().slice(0, 100)
+        ]);
+
+    if (valores.length === 0) {
+        return { insertadas: 0 };
+    }
+
+    const [resultado] = await connectionMysql.query(
+        `INSERT INTO categorias (codigo, nombre_categoria)
+         VALUES ?
+         ON DUPLICATE KEY UPDATE nombre_categoria = VALUES(nombre_categoria)`,
+        [valores]
+    );
+
+    console.log(`✅ Categorías sincronizadas desde Access. Filas procesadas: ${resultado.affectedRows}`);
+    return { insertadas: resultado.affectedRows };
+}
+
 async function Migraciondeproductos_almacen_lote(codigosFiltrados = null, connectionMysql) {
     const [categoriasSql] = await connectionMysql.query('SELECT id_categoria, codigo FROM categorias');
     const mapaCategorias = new Map(
@@ -249,6 +279,34 @@ async function MigracionStockAlmacen() {
     }
 }
 
+async function limpiarDuplicadosProductos(connectionMysql) {
+    try {
+        await connectionMysql.query(`
+            DELETE p1
+            FROM productos_almacen p1
+            INNER JOIN productos_almacen p2
+                ON p1.codigo_producto = p2.codigo_producto
+               AND p1.id_producto > p2.id_producto
+            WHERE p1.codigo_producto IS NOT NULL
+              AND TRIM(p1.codigo_producto) <> ''
+        `);
+
+        try {
+            await connectionMysql.query(`
+                ALTER TABLE productos_almacen
+                ADD UNIQUE INDEX uk_productos_codigo (codigo_producto)
+            `);
+        } catch (err) {
+            const msg = String(err.message || err);
+            if (!msg.includes('Duplicate entry') && !msg.includes('already exists') && !msg.includes('1062')) {
+                console.warn('[SyncCondicional] No se pudo crear el índice único de productos:', msg);
+            }
+        }
+    } catch (err) {
+        console.warn('[SyncCondicional] No se pudieron limpiar duplicados de productos:', err.message || err);
+    }
+}
+
 async function syncProductosYStockCondicional() {
     const conexionesListas = await verificarconexiones();
     if (!conexionesListas) {
@@ -259,13 +317,15 @@ async function syncProductosYStockCondicional() {
     const connectionMysql = await pool.getConnection();
 
     try {
+        await limpiarDuplicadosProductos(connectionMysql);
+
         // 1. Obtener códigos de Access
         const resAccess = await connection.query('SELECT cod_repuesto FROM InventarioRepuestos');
         const codigosAccess = new Set(resAccess.map(r => String(r.cod_repuesto || '').trim()).filter(Boolean));
         const totalAccess = codigosAccess.size;
 
-        // 2. Obtener códigos de MySQL
-        const [resMysql] = await connectionMysql.query('SELECT codigo_producto FROM productos_almacen');
+        // 2. Obtener códigos de MySQL únicos
+        const [resMysql] = await connectionMysql.query('SELECT DISTINCT codigo_producto FROM productos_almacen WHERE codigo_producto IS NOT NULL AND TRIM(codigo_producto) <> ""');
         const codigosMysql = new Set(resMysql.map(r => String(r.codigo_producto || '').trim()).filter(Boolean));
         const totalMysql = codigosMysql.size;
 
@@ -280,6 +340,7 @@ async function syncProductosYStockCondicional() {
         if (nuevosCodigos.length > 0) {
             syncAction = `Importando ${nuevosCodigos.length} nuevos productos`;
             console.log(`[SyncCondicional] 🚀 Se detectaron nuevos productos en Access. Importando...`);
+            await sincronizarCategoriasDesdeAccess(connectionMysql);
             await Migraciondeproductos_almacen_lote(nuevosCodigos, connectionMysql);
             await MigracionStockAlmacen_interna(connectionMysql);
         } else if (totalAccess < totalMysql || eliminadosEnAccess.length > 0) {
@@ -334,63 +395,96 @@ async function MigrarUnidadesAProductos() {
     const connectionMysql = await pool.getConnection();
 
     try {
-        // 1. Obtener las unidades desde Access (tabla tipoRepuesto)
-        // Según tu descripción, estos son los campos de origen
-        const unidadesAccess = await connection.query('SELECT codigo_tipo, Descripcion_tipo FROM tipoRepuesto');
+        const unidadesAccessRaw = await connection.query('SELECT TOP 1 * FROM unidades');
+        const unidadesAccess = Array.isArray(unidadesAccessRaw) ? unidadesAccessRaw : [];
 
-        if (unidadesAccess.length === 0) {
+        if (!unidadesAccess.length) {
             console.log("⚠️ No hay unidades para migrar desde Access.");
             return;
         }
 
+        const unidadColumns = Object.keys(unidadesAccess[0] || {});
+        const idUnidadColumn = unidadColumns.find(col => /id.*unidad|unidad/i.test(col)) || 'unidad';
+        const nombreUnidadColumn = unidadColumns.find(col => /descu|desc|nombre.*unidad|unidad.*desc/i.test(col)) || 'descu';
+
         console.log(`🚀 Migrando ${unidadesAccess.length} unidades de medida a MySQL...`);
 
-        // 2. Insertar las unidades en la tabla unidades_medida de MySQL
-        // Usamos INSERT IGNORE para evitar errores si ya existen
-        const valoresUnidades = unidadesAccess.map(u => [
-            String(u.codigo_tipo).trim(),
-            u.Descripcion_tipo || 'SIN DESCRIPCION'
-        ]);
+        const valoresUnidades = unidadesAccess
+            .filter(u => u && String(u[idUnidadColumn] ?? '').trim() !== '')
+            .map(u => {
+                const idUnidad = Number(String(u[idUnidadColumn]).trim());
+                const nombreUnidad = String(u[nombreUnidadColumn] ?? 'SIN DESCRIPCION').trim().slice(0, 100);
+                return Number.isFinite(idUnidad) && idUnidad > 0
+                    ? [idUnidad, nombreUnidad]
+                    : null;
+            })
+            .filter(Boolean);
 
-        await connectionMysql.query(
-            'INSERT IGNORE INTO unidades_medida (id_unidad, nombre_unidad) VALUES ?',
-            [valoresUnidades]
+        if (valoresUnidades.length > 0) {
+            await connectionMysql.query(
+                'INSERT IGNORE INTO unidades_medida (id_unidad, nombre_unidad) VALUES ?',
+                [valoresUnidades]
+            );
+        }
+
+        console.log("🔄 Relacionando unidades con productos...");
+
+        const relacionesAccess = await connection.query('SELECT cod_repuesto, Und_Med FROM InventarioRepuestos');
+
+        const [unidadesMysql] = await connectionMysql.query('SELECT id_unidad, nombre_unidad FROM unidades_medida');
+        const unidadesValidas = new Set(unidadesMysql.map(u => Number(u.id_unidad)).filter(id => Number.isFinite(id) && id > 0));
+        const mapaUnidadesPorNombre = new Map(
+            unidadesMysql
+                .map(u => {
+                    const nombre = String(u.nombre_unidad || '').trim().toLowerCase();
+                    return nombre ? [nombre, Number(u.id_unidad)] : null;
+                })
+                .filter(Boolean)
         );
 
-        // 3. Actualizar los productos en MySQL con su unidad correspondiente
-        // Necesitamos leer la relación desde la tabla de inventario en Access
-        console.log("🔄 Relacionando unidades con productos...");
-        const relacionesAccess = await connection.query('SELECT cod_repuesto, cod_tipo FROM InventarioRepuestos');
+        const rowsValidos = relacionesAccess
+            .filter(r => r && String(r.cod_repuesto ?? '').trim() !== '')
+            .map(r => {
+                const codigoProducto = String(r.cod_repuesto).trim();
+                const rawUnidad = r.Und_Med;
 
-        // Creamos una tabla temporal para una actualización masiva (mucho más rápido que un loop)
+                let idUnidad = null;
+                if (rawUnidad !== null && rawUnidad !== undefined && String(rawUnidad).trim() !== '') {
+                    const texto = String(rawUnidad).trim();
+                    const num = Number(texto);
+                    if (Number.isFinite(num) && num > 0) {
+                        idUnidad = num;
+                    } else {
+                        idUnidad = mapaUnidadesPorNombre.get(texto.toLowerCase()) ?? null;
+                    }
+                }
+
+                if (!idUnidad || !unidadesValidas.has(Number(idUnidad))) return null;
+                return [codigoProducto, Number(idUnidad)];
+            })
+            .filter(Boolean);
+
         await connectionMysql.query(`
             CREATE TEMPORARY TABLE IF NOT EXISTS temp_relacion_unidades (
                 cod_prod VARCHAR(100),
-                cod_uni VARCHAR(100),
+                cod_uni INT,
                 INDEX (cod_prod)
             )
         `);
         await connectionMysql.query('TRUNCATE TABLE temp_relacion_unidades');
 
-        const batchSize = 1000;
-        for (let i = 0; i < relacionesAccess.length; i += batchSize) {
-            const lote = relacionesAccess.slice(i, i + batchSize);
-            const values = lote.map(r => [
-                String(r.cod_repuesto).trim(),
-                String(r.cod_tipo).trim()
-            ]);
-
+        if (rowsValidos.length > 0) {
             await connectionMysql.query(
                 'INSERT INTO temp_relacion_unidades (cod_prod, cod_uni) VALUES ?',
-                [values]
+                [rowsValidos]
             );
         }
 
-        // 4. Ejecutar el UPDATE masivo con un JOIN
         const [resultado] = await connectionMysql.query(`
             UPDATE productos_almacen p
             INNER JOIN temp_relacion_unidades t ON p.codigo_producto = t.cod_prod
             SET p.id_unidad = t.cod_uni
+            WHERE t.cod_uni IS NOT NULL
         `);
 
         console.log(`✅ Migración de unidades finalizada.`);

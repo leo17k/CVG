@@ -54,10 +54,10 @@ const getAccessRequestType = (tipo) => {
     case 'Compra':
       return { prefix: 'C', tipoRC: 'CO', detalleTipo: 'CO01' };
     case 'Obra':
-      return { prefix: 'O', tipoRC: 'OB', detalleTipo: 'OB01' };
+      return { prefix: 'O', tipoRC: 'OB', detalleTipo: '95884' };
     case 'Servicio':
     default:
-      return { prefix: 'S', tipoRC: 'SV', detalleTipo: 'ST01' };
+      return { prefix: 'S', tipoRC: 'SV', detalleTipo: '95884' };
   }
 };
 
@@ -122,6 +122,7 @@ export async function sendSolicitudToAccess(id_solicitud) {
     const [rows] = await pool.query(`
       SELECT 
         s.id_solicitud, 
+        s.codigo_solicitud,
         s.fecha_creacion, 
         s.id_gerencia, 
         s.resumen, 
@@ -142,28 +143,58 @@ export async function sendSolicitudToAccess(id_solicitud) {
       return { ok: false, reason: 'not-found' };
     }
     const s = rows[0];
-    if (s.id_estado !== 6 && s.estado_nombre !== 'Aprovadas') {
+    const exportableStates = new Set(['Aprovadas', 'Finalizado', 'Aprobado', 'Aprobado Gerencia', 'En Compras']);
+    const estadoActual = String(s.estado_nombre || '').trim();
+    if (!exportableStates.has(estadoActual) && Number(s.id_estado) !== 6) {
       appendLog(`[AccessJobs] Solicitud ${id_solicitud} no exportada a Access porque su estado es ${s.estado_nombre} (id ${s.id_estado})`);
       return { ok: false, reason: 'not-approved' };
     }
-    const accessType = getAccessRequestType(s.tipo_solicitud);
-    const typePrefix = accessType.prefix;
-    const NReqCompra = `${typePrefix}-${s.id_solicitud}`;
+    const tipoSolicitudNormalizado = String(s.tipo_solicitud || '').trim();
+    const accessType = getAccessRequestType(tipoSolicitudNormalizado);
+    const codigoVisible = s.codigo_solicitud || String(s.id_solicitud);
+    const NReqCompra = String(codigoVisible);
 
     await detectSchema();
 
-    const nreqSqlValue = nreqIsNumeric ? `${num(s.id_solicitud)}` : `'${esc(NReqCompra)}'`;
+    const legacyCandidates = new Set([
+      String(s.id_solicitud),
+      `${accessType.prefix}-${s.id_solicitud}`,
+      `${accessType.prefix}${s.id_solicitud}`,
+      String(s.codigo_solicitud || ''),
+      NReqCompra
+    ].filter(Boolean));
 
-    // Revisar existencia
+    let existingRows = [];
+    for (const candidate of legacyCandidates) {
+      const candidateSql = /^-?\d+(?:\.\d+)?$/.test(String(candidate).trim())
+        ? `${num(candidate)}`
+        : `'${esc(String(candidate))}'`;
+
+      try {
+        const rows = await connectionCompras.query(`SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] = ${candidateSql}`);
+        if (rows && rows.length > 0) {
+          existingRows = rows;
+          break;
+        }
+      } catch (e) {
+        appendLog(`[AccessJobs] Check legacy candidate falló para ${candidate}: ${e.message || e}`);
+      }
+    }
+
+    const existingNreq = existingRows && existingRows.length > 0 ? String(existingRows[0].NReqCompra ?? '') : null;
+    const canonicalNreq = NReqCompra;
+    const upsertKey = existingNreq || canonicalNreq;
+    const nreqSqlValue = nreqIsNumeric ? `${num(upsertKey)}` : `'${esc(upsertKey)}'`;
+
+    // Revisar existencia usando el valor canónico y los antiguos alias del mismo documento.
     let existsInAccess = [];
     try {
       existsInAccess = await connectionCompras.query(`SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] = ${nreqSqlValue}`);
     } catch (qErr) {
-      appendLog(`[AccessJobs] checkQuery falló para ${NReqCompra}: ${qErr.message || qErr}`);
-      // Intentar fallbacks
+      appendLog(`[AccessJobs] checkQuery falló para ${upsertKey}: ${qErr.message || qErr}`);
       const attempts = [];
       if (!nreqIsNumeric) attempts.push(`SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] = ${num(s.id_solicitud)}`);
-      if (nreqIsNumeric) attempts.push(`SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] = '${esc(NReqCompra)}'`);
+      if (nreqIsNumeric) attempts.push(`SELECT [NReqCompra] FROM [REQCOMPRA] WHERE [NReqCompra] = '${esc(upsertKey)}'`);
       for (const a of attempts) {
         try {
           existsInAccess = await connectionCompras.query(a);
@@ -174,8 +205,17 @@ export async function sendSolicitudToAccess(id_solicitud) {
       }
     }
 
+    if (existingNreq && existingNreq !== canonicalNreq) {
+      try {
+        await connectionCompras.execute(`UPDATE [REQCOMPRA] SET [NReqCompra] = '${esc(canonicalNreq)}' WHERE [NReqCompra] = '${esc(existingNreq)}'`);
+        appendLog(`[AccessJobs] Normalizado NReqCompra antiguo ${existingNreq} -> ${canonicalNreq}`);
+      } catch (normalizeErr) {
+        appendLog(`[AccessJobs] No se pudo normalizar NReqCompra ${existingNreq} -> ${canonicalNreq}: ${normalizeErr.message || normalizeErr}`);
+      }
+    }
+
     // Preparar valores
-    const estadoRC = ['Aprovadas', 'Finalizado', 'Aprobado'].includes(s.estado_nombre) ? 'AP' : 'IN';
+    const estadoRC = ['Aprovadas', 'Finalizado', 'Aprobado', 'Aprobado Gerencia', 'En Compras'].includes(estadoActual) ? 'AP' : 'IN';
     const prioridadRC = s.prioridad === 'Alta' ? 1 : (s.prioridad === 'Media' ? 2 : 3);
     const tipoRC = accessType.tipoRC;
 
@@ -284,8 +324,11 @@ export async function sendSolicitudToAccess(id_solicitud) {
     const [details] = await pool.query(`
       SELECT
         d.cantidad,
+        d.id_producto,
+        d.id_servicio,
         p.codigo_producto,
         p.nombre_producto,
+        p.id_categoria,
         um.abreviatura AS unidad_producto,
         srv.codigo_servicio,
         srv.nombre_servicio,
@@ -301,11 +344,14 @@ export async function sendSolicitudToAccess(id_solicitud) {
     for (let index = 0; index < details.length; index++) {
       const d = details[index];
       const NRenglon = index + 1;
-      const CodRenglon = d.codigo_producto || d.codigo_servicio || '00001';
-      const Descripcion = d.nombre_producto || d.nombre_servicio || 'SIN DESCRIPCION';
+      const CodRenglon = d.codigo_servicio || d.codigo_producto || '00001';
+      const Descripcion = d.nombre_servicio || d.nombre_producto || 'SIN DESCRIPCION';
       const Unidad = d.unidad_producto || 'C/U';
       const Cantidad = num(d.cantidad, 1);
-      const Cod_Tipo = d.categoria_producto || accessType.detalleTipo;
+      const tipoEsServicioObra = ['Servicio', 'Obra'].includes(tipoSolicitudNormalizado)
+        || (!d.id_producto && !!d.id_servicio)
+        || (!d.codigo_producto && !!d.codigo_servicio);
+      const Cod_Tipo = tipoEsServicioObra ? '95884' : (d.categoria_producto || accessType.detalleTipo);
 
       const nrenglonSql = nrenglonIsNumeric ? `${NRenglon}` : `'${NRenglon}'`;
       const cantidadSql = cantidadIsNumeric ? `${Cantidad}` : `'${Cantidad}'`;
@@ -341,19 +387,35 @@ export async function sendSolicitudToAccess(id_solicitud) {
 export async function incrementalMigrationSince(hours = 1) {
   try {
     const sinceExpr = `DATE_SUB(NOW(), INTERVAL ${Number(hours)} HOUR)`;
-    const [created] = await pool.query(`SELECT id_solicitud FROM solicitudes_compra WHERE fecha_creacion >= ${sinceExpr}`);
-    const [histRows] = await pool.query(`SELECT DISTINCT id_solicitud FROM historial_estados WHERE fecha_cambio >= ${sinceExpr}`);
+
+    const [created] = await pool.query(`
+      SELECT DISTINCT s.id_solicitud
+      FROM solicitudes_compra s
+      INNER JOIN estados_solicitud es ON es.id_estado = s.id_estado
+      WHERE s.fecha_creacion >= ${sinceExpr}
+        AND es.nombre IN ('Aprovadas', 'Finalizado', 'Aprobado', 'Aprobado Gerencia', 'En Compras')
+    `);
+
+    const [histRows] = await pool.query(`
+      SELECT DISTINCT h.id_solicitud
+      FROM historial_estados h
+      INNER JOIN solicitudes_compra s ON s.id_solicitud = h.id_solicitud
+      INNER JOIN estados_solicitud es ON es.id_estado = s.id_estado
+      WHERE h.fecha_cambio >= ${sinceExpr}
+        AND h.estado_nuevo IN ('Aprovadas', 'Finalizado', 'Aprobado', 'Aprobado Gerencia', 'En Compras')
+        AND es.nombre IN ('Aprovadas', 'Finalizado', 'Aprobado', 'Aprobado Gerencia', 'En Compras')
+    `);
 
     const ids = new Set();
     for (const r of created) ids.add(r.id_solicitud);
     for (const r of histRows) ids.add(r.id_solicitud);
 
     if (!ids.size) {
-      appendLog(`[AccessJobs] No hay solicitudes nuevas/modificadas en las últimas ${hours} horas.`);
+      appendLog(`[AccessJobs] No hay solicitudes aprobadas nuevas/modificadas en las últimas ${hours} horas.`);
       return { processed: 0 };
     }
 
-    appendLog(`[AccessJobs] Iniciando migración incremental para ${ids.size} solicitudes.`);
+    appendLog(`[AccessJobs] Iniciando migración incremental para ${ids.size} solicitudes aprobadas.`);
     let processed = 0;
     for (const id of ids) {
       try {

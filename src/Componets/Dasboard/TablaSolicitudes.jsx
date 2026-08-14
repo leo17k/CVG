@@ -232,12 +232,14 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
         setProcessSuccessMessage('');
 
         if (isAprobado) {
+          const codigo = selected?.codigo_solicitud || `#${id}`;
           toast.success(`Operación Finalizada`, {
-            description: `La solicitud #${id} ha sido aprobada correctamente.`,
+            description: `La solicitud ${codigo} ha sido aprobada correctamente.`,
           });
         } else {
+          const codigo = selected?.codigo_solicitud || `#${id}`;
           toast.warning(`Operación Finalizada`, {
-            description: `La solicitud #${id} ha sido rechazada correctamente.`,
+            description: `La solicitud ${codigo} ha sido rechazada correctamente.`,
           });
         }
 
@@ -262,7 +264,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
     if (!targetId) { toast.error('Error', { description: 'ID de solicitud no encontrado' }); return; }
     triggerAction({
       title: "¿Confirmar Aprobación?",
-      message: `Estás por aprobar la solicitud #${targetId}. Esta acción notificará al usuario y cambiará el estado del expediente.`,
+      message: `Estás por aprobar la solicitud ${selected?.codigo_solicitud || `#${targetId}`}. Esta acción notificará al usuario y cambiará el estado del expediente.`,
       type: "question",
       action: () => changeStatus(targetId, targetStatus)
     });
@@ -273,7 +275,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
     if (!targetId) { toast.error('Error', { description: 'ID de solicitud no encontrado' }); return; }
     triggerAction({
       title: "¿Rechazar Solicitud?",
-      message: `¿Estás seguro de rechazar la solicitud #${targetId}? Esta acción es definitiva.`,
+      message: `¿Estás seguro de rechazar la solicitud ${selected?.codigo_solicitud || `#${targetId}`}? Esta acción es definitiva.`,
       type: "danger",
       action: () => changeStatus(targetId, 'Rechazado')
     });
@@ -539,16 +541,24 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
               ) : (data && data.length > 0) ? (
                 data.map((row) => (
                   <tr key={row.id_solicitud} className="hover:bg-slate-50/50 transition-colors animate-in fade-in duration-300">
-                    <td className="px-6 py-3.5 font-bold text-slate-400">#{row.id_solicitud}</td>
+                    <td className="px-6 py-3.5 font-bold text-slate-400 w-max whitespace-nowrap">{row.codigo_solicitud || `#${row.id_solicitud}`}</td>
                     <td className="px-6 py-3.5 font-semibold text-slate-700 truncate">{row.resumen}</td>
 
-                    <td className="px-6 py-3.5 text-left text-nowrap w-max font-mono font-bold text-slate-800">
-                      {row.nombre_gerencia}
+                    <td className="px-6 py-3.5 whitespace-nowrap text-left text-nowrap font-bold text-slate-800">
+                      <span
+                        className="group relative inline-flex max-w-[200px]  rounded-md text-slate-700 transition-colors hover:text-slate-900"
+                        data-title={row.nombre_gerencia || 'Sin gerencia'}
+                        style={{ maxWidth: '200px' }}
+                      >
+                        <span className="block truncate rounded-md px-2 py-1 hover:bg-slate-100">
+                          {row.nombre_gerencia || 'Sin gerencia'}
+                        </span>
+                      </span>
                     </td>
                     <td className="px-6 py-3.5 text-nowrap w-max ">
                       <span style={{ backgroundColor: "", color: row.estado_color, borderColor: row.estado_color }} className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border `}>
 
-                        {row.estado_nombre}
+                        {row.estado_nombre} 
                       </span>
                     </td>
                     <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-800">
@@ -601,7 +611,7 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                       <span className="text-[10px] max-sm:opacity-0 font-bold text-slate-400 uppercase">Expediente Digital</span>
                     </div>
                     <h3 className="text-3xl max-sm:text-xl font-black text-slate-900 leading-none">
-                      Solicitud <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 to-indigo-600">#{selected.id_solicitud}</span>
+                      Solicitud <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 to-indigo-600">{selected.codigo_solicitud || `#${selected.id_solicitud}`}</span>
                     </h3>
                   </div>
                 </div>
@@ -612,9 +622,11 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
 
                 <div className="flex items-center gap-6 mr-4">
                   <div className="text-right hidden md:block">
+        
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Tipo de Gestión</p>
                     <p className="text-sm font-black text-blue-800">{selected.tipo_solicitud}</p>
                   </div>
+                  
                   <div className="px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider border shadow-sm transition-all"
                     style={{
                       color: selected.estado_color || '#334155',
@@ -635,6 +647,18 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
 
                 {/* COLUMNA IZQUIERDA: RESUMEN (60%) */}
                 <div className="w-[62%] max-sm:w-full max-sm:overflow-visible overflow-y-auto p-10 space-y-10 bg-white custom-scrollbar">
+                   <div className="flex md:hidden items-center gap-4">
+                      <Avatar className="h-12 w-12 border-2 border-white shadow-md">
+                        <AvatarImage src={selected.avatar} className="object-cover" />
+                        <AvatarFallback className="bg-linear-to-tr from-blue-600 to-indigo-700 text-white text-sm font-black uppercase">
+                          {obtenerIniciales(selected.nombre_completo)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Solicitante</p>
+                        <p className="text-sm font-black text-slate-900">{selected.nombre_completo}</p>
+                      </div>
+                    </div>
                   <div className="hidden max-sm:block">                 <p className="text-xl font-bold text-slate-400 uppercase tracking-tighter">Tipo de Gestión</p>
                     <p className="text-sm font-black text-blue-800">{selected.tipo_solicitud}</p></div>
                   {/* Título y Gerencia */}
@@ -816,8 +840,8 @@ const TablaSolicitudes = ({ data = [], loading: apiLoading, currentPage = 1, tot
                 const gerentePuedeActuar = esPendiente && (isGerente || isSuperAdmin || isAdministrador);
 
                 return (
-                  <div data-tour="solicitud-actions" className="bg-white max-sm:hidden px-10 py-7 border-t border-slate-100 flex justify-between items-center shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
-                    <div className="flex items-center gap-4">
+                  <div data-tour="solicitud-actions" className="bg-white  px-10 py-7 border-t border-slate-100 flex justify-between items-center shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+                    <div className="flex max-sm:hidden items-center gap-4">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-md">
                         <AvatarImage src={selected.avatar} className="object-cover" />
                         <AvatarFallback className="bg-linear-to-tr from-blue-600 to-indigo-700 text-white text-sm font-black uppercase">

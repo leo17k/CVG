@@ -108,19 +108,30 @@ const TablaUsuarios = ({
     // Search / filter
     const [search, setSearch] = useState(filtrosActuales.busqueda || '');
     const [gerencia, setGerencia] = useState(filtrosActuales.gerencia || '');
+    const [rol, setRol] = useState(filtrosActuales.rol || '');
     const [columna, setColumna] = useState(filtrosActuales.columna || 'nombres');
 
     // Filter modal
     const [filterModalOpen, setFilterModalOpen] = useState(false);
     const [tmpGerencia, setTmpGerencia] = useState(gerencia);
+    const [tmpRol, setTmpRol] = useState(rol);
     const [tmpColumna, setTmpColumna] = useState(columna);
 
-    const openFilterModal = () => { setTmpGerencia(gerencia); setTmpColumna(columna); setFilterModalOpen(true); };
-    const applyFilters = () => { setGerencia(tmpGerencia); setColumna(tmpColumna); setFilterModalOpen(false); };
-    const clearFilters = () => { setSearch(''); setGerencia(''); setColumna('nombres'); setTmpGerencia(''); setTmpColumna('nombres'); setFilterModalOpen(false); };
+    const openFilterModal = () => { setTmpGerencia(gerencia); setTmpRol(rol); setTmpColumna(columna); setFilterModalOpen(true); };
+    const applyFilters = () => { setGerencia(tmpGerencia); setRol(tmpRol); setColumna(tmpColumna); setFilterModalOpen(false); };
+    const clearFilters = () => { setSearch(''); setGerencia(''); setRol(''); setColumna('nombres'); setTmpGerencia(''); setTmpRol(''); setTmpColumna('nombres'); setFilterModalOpen(false); };
 
-    const columnaLabel = { nombres: 'Nombre', email: 'Correo', username: 'Usuario' };
-    const hasActiveFilters = gerencia || columna !== 'nombres';
+    const columnaLabel = {
+        nombres: 'Nombre',
+        apellidos: 'Apellido',
+        email: 'Correo',
+        username: 'Usuario',
+        cedula: 'Cédula',
+        rol: 'Rol del Sistema',
+        nombre_rol: 'Rol del Sistema',
+        id_rol: 'Rol del Sistema'
+    };
+    const hasActiveFilters = gerencia || rol || columna !== 'nombres';
 
     // Visual loading skeleton (min 200 ms)
     const [visualLoading, setVisualLoading] = useState(true);
@@ -130,24 +141,20 @@ const TablaUsuarios = ({
         return () => clearTimeout(t);
     }, [apiLoading, currentPage]);
 
-    // ── Filtering (client side on current page data) ──
-    const filtered = data.filter(row => {
-        const matchG = !gerencia || String(row.id_gerencia) === String(gerencia);
-        const term = search.toLowerCase().trim();
-        const matchS = !term || String(row[columna] || '').toLowerCase().includes(term);
-        return matchG && matchS;
-    });
-
+    // El filtro debe ejecutarse en la BD vía backend; no en la página ya recibida.
+    const filtered = Array.isArray(data) ? data : [];
     const visible = filtered;
     const hasMore = currentPage < totalPages;
 
     // Apply search to parent (debounced)
     useEffect(() => {
         const t = setTimeout(() => {
-            if (onFilter) onFilter({ busqueda: search, gerencia, columna });
+            const nextColumna = columna === 'rol' || columna === 'nombre_rol' ? 'id_rol' : columna;
+            const nextBusqueda = nextColumna === 'id_rol' ? rol || search : search;
+            if (onFilter) onFilter({ busqueda: nextBusqueda, gerencia, columna: nextColumna, rol });
         }, 400);
         return () => clearTimeout(t);
-    }, [search, gerencia, columna]);
+    }, [search, gerencia, rol, columna]);
 
     // ── Confirmation modal ──
     const [confModal, setConfModal] = useState({ isOpen: false, type: 'question', title: '', message: '', onConfirm: () => { } });
@@ -621,28 +628,30 @@ const TablaUsuarios = ({
 
                         {/* Fields */}
                         <div className="flex flex-col gap-4">
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Buscar por campo</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[
-                                        { value: 'nombres',  label: 'Nombre'  },
-                                        { value: 'email',    label: 'Correo'  },
-                                        { value: 'username', label: 'Usuario' },
-                                    ].map(op => (
-                                        <button
-                                            key={op.value}
-                                            onClick={() => setTmpColumna(op.value)}
-                                            className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
-                                                tmpColumna === op.value
-                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
-                                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                                            }`}
-                                        >
-                                            {op.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            <Select
+                                label="Buscar por campo"
+                                name="columna"
+                                value={tmpColumna}
+                                onChange={e => setTmpColumna(e.target.value)}
+                                options={[
+                                    { value: 'nombres', label: 'Nombre' },
+                                    { value: 'apellidos', label: 'Apellido' },
+                                    { value: 'email', label: 'Correo' },
+                                    { value: 'username', label: 'Usuario' },
+                                    { value: 'cedula', label: 'Cédula' },
+                                    { value: 'id_rol', label: 'Rol del Sistema' },
+                                ]}
+                            />
+
+                            {tmpColumna === 'id_rol' && roles.length > 0 && (
+                                <Select
+                                    label="Rol del Sistema"
+                                    name="rol"
+                                    value={tmpRol}
+                                    onChange={e => setTmpRol(e.target.value)}
+                                    options={[{ value: '', label: 'Todos los roles' }, ...roles]}
+                                />
+                            )}
 
                             {gerencias.length > 0 && (
                                 <Select

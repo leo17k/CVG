@@ -269,31 +269,34 @@ const TablaInventario = ({ data = [], alSeleccionar, loading: apiLoading, curren
                     <Package className="w-5 h-5 text-blue-500" />
                     <h2 className="font-bold text-slate-800 whitespace-nowrap">Inventario de Activos</h2>
 
-                    {1 == 1 && (
-                        <div className="flex gap-2"> {/* Contenedor para agrupar botones */}
+                    
+                        <div
+                        className="flex gap-2"
+                        style={{ visibility: 'visible', pointerEvents: 'auto' }}
+                    >
+                        {/* Botón de Filtros */}
+                        <button
+                            onClick={() => {
+                                setFilterModalOpen(true);
+                            }}
+                            className={`ml-4 p-2 rounded-2xl bg-white shadow-sm text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-all flex items-center gap-2 text-xs font-semibold`}
+                            style={{ visibility: activeTab === 'solicitudes' || activeTab === 'creacion' ? 'hidden' : 'visible', pointerEvents: activeTab === 'solicitudes' || activeTab === 'creacion' ? 'none' : 'auto' }}
+                        >
+                            <Filter size={16} />
+                            <span className="max-xl:hidden">Filtros</span>
+                        </button>
 
-                            {/* Botón de Filtros */}
-                            <button
-                                onClick={() => {
-                                    setFilterModalOpen(true);
-                                }}
-                                className={`ml-4 p-2 rounded-2xl bg-white shadow-sm text-slate-600 hover:bg-slate-100 hover:text-blue-600 transition-all flex items-center gap-2 text-xs font-semibold`}
-                            >
-                                <Filter size={16} />
-                                <span className="max-xl:hidden">Filtros</span>
-                            </button>
-
-                            {/* Botón Nuevo */}
-                            <button
-                                onClick={() => setCreateModalOpen(true)}
-                                className={`p-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-all gap-2 text-xs font-semibold`}
-                            >
-                                <Plus size={16} strokeWidth={3} />
-                                <span className="max-xl:hidden">Nuevo</span>
-                            </button>
-
-                        </div>
-                    )}
+                        {/* Botón Nuevo */}
+                        <button
+                            onClick={() => setCreateModalOpen(true)}
+                            className={`p-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-all gap-2 text-xs font-semibold`}
+                            style={{ visibility: activeTab === 'solicitudes' ? 'hidden' : 'visible', pointerEvents: activeTab === 'solicitudes' ? 'none' : 'auto' }}
+                        >
+                            <Plus size={16} strokeWidth={3} />
+                            <span className="max-xl:hidden">Nuevo</span>
+                        </button>
+                    </div>
+                   
                     <div className='flex gap-2 ml-auto justify-end items-end -mb-8 z-2'>
                         <button
                             onClick={() => {
@@ -331,7 +334,7 @@ const TablaInventario = ({ data = [], alSeleccionar, loading: apiLoading, curren
                 </div>
 
                 <div className="overflow-x-auto flex-1 custom-scrollbar">
-                    <table className="w-full text-left text-sm custom-scrollbar border-collapse">
+                    <table className="w-full  text-left text-sm custom-scrollbar border-collapse">
                         <thead className="bg-slate-50/50  z-20 text-slate-500 uppercase text-[10px] font-bold sticky top-0 z-10">
                             <tr className="border-b border-slate-100">
                                 {activeTab === 'categorias' && (

@@ -1,4 +1,4 @@
-import pool from "./ConexionSQL.js";
+import pool, { getNextSolicitudCounter } from "./ConexionSQL.js";
 import { insetarSolicitud, insertarDetalleSQL } from "./SQL.js";
 
 async function insetSolicitud({
@@ -41,6 +41,8 @@ async function insetSolicitud({
         }
     }
 
+    const codigoRes = await getNextSolicitudCounter(tipo_solicitud);
+
     const values = [
         resumen,                // 1.
         justificacion,          // 2.
@@ -48,9 +50,10 @@ async function insetSolicitud({
         requerimientos_texto,   // 4.
         requerimientos_pdf_url, // 5.
         tipo_solicitud,         // 6.
-        prioridad,              // 7.
-        gerencia,               // 8. id_gerencia
-        id_usuario              // 9. id_solicitante
+        codigoRes.codigo,      // 7.
+        prioridad,              // 8.
+        gerencia,               // 9. id_gerencia
+        id_usuario              // 10. id_solicitante
     ];
 
     try {
@@ -59,11 +62,17 @@ async function insetSolicitud({
 
         // Insertar productos/servicios en detalles_solicitud
         if (productos && productos.length > 0) {
+            const tipoNormalizado = String(tipo_solicitud || 'Compra').trim();
             for (const p of productos) {
+                const itemProducto = p.id_producto ?? null;
+                const itemServicio = p.id_servicio ?? null;
+                const idProducto = ['Servicio', 'Obra'].includes(tipoNormalizado) ? (itemProducto ?? null) : (itemProducto || null);
+                const idServicio = ['Servicio', 'Obra'].includes(tipoNormalizado) ? (itemServicio ?? itemProducto ?? null) : (itemServicio || null);
+
                 await pool.execute(insertarDetalleSQL, [
                     idSolicitud,
-                    p.id_producto || null,               // NULL si es un servicio
-                    p.id_servicio || null,               // NULL si es un producto // nombre legible
+                    idProducto,
+                    idServicio,
                     Number(p.cantidad) || 1
                 ]);
             }
@@ -71,10 +80,16 @@ async function insetSolicitud({
 
         // NOTE: Chat creation is deferred until a user explicitly sends a message
 
+        await pool.execute(
+            `UPDATE solicitudes_compra SET codigo_solicitud = ? WHERE id_solicitud = ?`,
+            [codigoRes.codigo, idSolicitud]
+        );
+
         return {
             codigo: 201,
             mensaje: "Solicitud creada con éxito",
-            id: idSolicitud
+            id: idSolicitud,
+            codigo_solicitud: codigoRes.codigo
         };
     } catch (error) {
         console.error("Error en la base de datos:", error);

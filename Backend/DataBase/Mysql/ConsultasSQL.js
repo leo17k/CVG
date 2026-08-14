@@ -220,23 +220,11 @@ const solicitudESCOMPRA = async (body = {}) => {
     let whereClause = ' WHERE 1=1';
     const values = [];
 
-    // Búsqueda global (aplica a todos los registros visibles)
+    // Búsqueda global por código visible de la solicitud, resumen o solicitante.
     if (busqueda) {
-        let cleanId = null;
-        const match = busqueda.trim().match(/^(?:[CS]-|#)?(\d+)$/i);
-        if (match) {
-            cleanId = parseInt(match[1], 10);
-        }
-
-        if (cleanId !== null) {
-            whereClause += ' AND (s.id_solicitud = ? OR s.resumen LIKE ? OR CONCAT(u.nombres, " ", u.apellidos) LIKE ?)';
-            const term = `%${busqueda}%`;
-            values.push(cleanId, term, term);
-        } else {
-            whereClause += ' AND (s.resumen LIKE ? OR CONCAT(u.nombres, " ", u.apellidos) LIKE ?)';
-            const term = `%${busqueda}%`;
-            values.push(term, term);
-        }
+        const term = `%${busqueda.trim()}%`;
+        whereClause += ' AND (s.codigo_solicitud LIKE ? OR s.resumen LIKE ? OR CONCAT(u.nombres, " ", u.apellidos) LIKE ?)';
+        values.push(term, term, term);
     }
 
     // Construir condiciones de visibilidad (owner OR role-specific)
@@ -340,6 +328,7 @@ const solicitudESCOMPRA = async (body = {}) => {
     const baseSelect = `
       SELECT
     s.id_solicitud,
+    s.codigo_solicitud,
     s.fecha_creacion,
     g.nombre_gerencia,
     s.id_gerencia,

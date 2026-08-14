@@ -198,6 +198,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
     const [localSearch, setLocalSearch] = useState(filtrosActuales.search || '');
     const [localCategoria, setLocalCategoria] = useState(filtrosActuales.categoria || '');
     const [localStockStatus, setLocalStockStatus] = useState(filtrosActuales.stockStatus || '');
+    const [localCategoriaSearch, setLocalCategoriaSearch] = useState('');
 
     // Sincroniza cuando el padre resetea los filtros (ej: al cambiar de tab)
     useEffect(() => {
@@ -205,10 +206,15 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
             setLocalSearch(filtrosActuales.search || '');
             setLocalCategoria(filtrosActuales.categoria || '');
             setLocalStockStatus(filtrosActuales.stockStatus || '');
+            setLocalCategoriaSearch('');
         }
     }, [filterModalOpen, filtrosActuales.search, filtrosActuales.categoria, filtrosActuales.stockStatus]);
 
-    const hayFiltrosActivos = !!(filtrosActuales.search || filtrosActuales.categoria || filtrosActuales.stockStatus);
+    const hayFiltrosActivos = activeTab === 'categorias'
+        ? !!localCategoriaSearch
+        : !!(filtrosActuales.search || filtrosActuales.categoria || filtrosActuales.stockStatus);
+    const showTopActions = activeTab !== 'solicitudes' && activeTab !== 'creacion';
+    const showFilterButton = showTopActions && (activeTab === 'productos' || activeTab === 'categorias');
 
     // ── Estados de edición de producto ─────────────────────────────────
     const [isEditing, setIsEditing] = useState(false);
@@ -452,7 +458,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                 body: JSON.stringify({ observacion: 'Verificado por Almacén. Producto en stock.' })
             });
             if (res.ok) {
-                toast.success(`Visto bueno dado — La solicitud #${row.id_solicitud} pasó a Compras.`);
+                toast.success(`Visto bueno dado — La solicitud ${row.codigo_solicitud || `#${row.id_solicitud}`} pasó a Compras.`);
                 fetchSolicitudesAlmacen();
             } else {
                 const j = await res.json();
@@ -499,37 +505,36 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                         <h2 className="font-bold text-slate-800 whitespace-nowrap ">Almacen</h2>
                     </div>
 
-                    {1 == 1 && (
-                        <div className="flex gap-2"> {/* Contenedor para agrupar botones */}
-
-                            {/* Botón de Filtros — con badge cuando hay filtros activos */}
-                            <button
-                                onClick={() => setFilterModalOpen(true)}
-                                className={`relative ml-4 p-2 max-sm:absolute max-sm:top-2 max-sm:right-2 rounded-2xl shadow-sm transition-all flex items-center gap-2 text-xs font-semibold ${hayFiltrosActivos
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                    : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-blue-600'
-                                    }`}
-                            >
-                                <Filter size={16} />
-                                <span className="max-xl:hidden">Filtros</span>
-                                {hayFiltrosActivos && (
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-white" />
-                                )}
-                            </button>
-
-                            {/* Botón Nuevo — solo en pestañas de inventario */}
-                            {activeTab !== 'solicitudes' && (
-                                <button
-                                    onClick={() => setCreateModalOpen(true)}
-                                    className={`p-2 max-sm:absolute max-sm:top-2 max-sm:left-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-all gap-2 text-xs font-semibold`}
-                                >
-                                    <Plus size={16} strokeWidth={3} />
-                                    <span className="max-xl:hidden">Nuevo</span>
-                                </button>
+                    <div
+                        className="flex gap-2"
+                        style={{ visibility: showTopActions ? 'visible' : 'hidden', pointerEvents: showTopActions ? 'auto' : 'none' }}
+                    >
+                        {/* Botón de Filtros — con badge cuando hay filtros activos */}
+                        <button
+                            onClick={() => setFilterModalOpen(true)}
+                            className={`relative ml-4 p-2 max-sm:absolute max-sm:top-2 max-sm:right-2 rounded-2xl shadow-sm transition-all flex items-center gap-2 text-xs font-semibold ${hayFiltrosActivos
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-blue-600'
+                                }`}
+                            style={{ visibility: showFilterButton ? 'visible' : 'hidden', pointerEvents: showFilterButton ? 'auto' : 'none' }}
+                        >
+                            <Filter size={16} />
+                            <span className="max-xl:hidden">Filtros</span>
+                            {hayFiltrosActivos && (
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-white" />
                             )}
+                        </button>
 
-                        </div>
-                    )}
+                        {/* Botón Nuevo — solo en pestañas de inventario */}
+                        <button
+                            onClick={() => setCreateModalOpen(true)}
+                            className={`p-2 max-sm:absolute max-sm:top-2 max-sm:left-2 px-4 flex justify-center items-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200 hover:bg-blue-700 transition-all gap-2 text-xs font-semibold`}
+                            style={{ visibility: showTopActions ? 'visible' : 'hidden', pointerEvents: showTopActions ? 'auto' : 'none' }}
+                        >
+                            <Plus size={16} strokeWidth={3} />
+                            <span className="max-xl:hidden">Nuevo</span>
+                        </button>
+                    </div>
                     <div className='flex gap-2 ml-auto justify-end items-end max-sm:w-full max-sm:justify-center  -mb-8 z-2'>
                         <button
                             onClick={() => { manejarCambio('solicitudes'); }}
@@ -604,7 +609,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[12px] font-black text-blue-600 uppercase tracking-widest">Solicitud #{row.id_solicitud}</span>
+                                                        <span className="text-[12px] font-black text-blue-600 uppercase tracking-widest">Solicitud {row.codigo_solicitud || `#${row.id_solicitud}`}</span>
                                                         <span className="w-1 h-1 rounded-full bg-slate-300" />
 
                                                     </div>
@@ -819,8 +824,23 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                             ))}
                                         </tr>
                                     ))
-                                ) : (data && data.length > 0) ? (
-                                    data.map((row, i) => (
+                                ) : ((activeTab === 'categorias' ? (Array.isArray(data) ? data.filter((row) => {
+                                    const q = localCategoriaSearch.trim().toLowerCase();
+                                    if (!q) return true;
+                                    const hayTexto = `${row.nombre_categoria || ''} ${row.codigo || ''}`.toLowerCase();
+                                    return hayTexto.includes(q);
+                                }) : []) : data) && (activeTab === 'categorias' ? (Array.isArray(data) ? data.filter((row) => {
+                                    const q = localCategoriaSearch.trim().toLowerCase();
+                                    if (!q) return true;
+                                    const hayTexto = `${row.nombre_categoria || ''} ${row.codigo || ''}`.toLowerCase();
+                                    return hayTexto.includes(q);
+                                }) : []) : data).length > 0) ? (
+                                    (activeTab === 'categorias' ? (Array.isArray(data) ? data.filter((row) => {
+                                        const q = localCategoriaSearch.trim().toLowerCase();
+                                        if (!q) return true;
+                                        const hayTexto = `${row.nombre_categoria || ''} ${row.codigo || ''}`.toLowerCase();
+                                        return hayTexto.includes(q);
+                                    }) : []) : data).map((row, i) => (
                                         <tr key={row.id_producto || row.id_categoria || i} className="hover:bg-slate-50/50 transition-colors animate-in fade-in duration-300">
                                             {activeTab === 'categorias' && (
                                                 <>
@@ -958,7 +978,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                 isOpen={!!confirmVerificar}
                 type="question"
                 title="¿Dar visto bueno?"
-                message={`La solicitud #${confirmVerificar?.id_solicitud} “${confirmVerificar?.resumen}” será enviada a Compras. El producto existe en inventario.`}
+                message={`La solicitud ${confirmVerificar?.codigo_solicitud || `#${confirmVerificar?.id_solicitud}`} “${confirmVerificar?.resumen}” será enviada a Compras. El producto existe en inventario.`}
                 onConfirm={() => handleVerificar(confirmVerificar)}
                 onCancel={() => setConfirmVerificar(null)}
             />
@@ -1254,7 +1274,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
             />
 
             {/* ── Modal de Filtros de Productos ──────────────────────────── */}
-            {filterModalOpen && activeTab === 'productos' && (
+            {filterModalOpen && (activeTab === 'productos' || activeTab === 'categorias') && (
                 <Modal
                     isOpen={filterModalOpen}
                     onClose={() => setFilterModalOpen(false)}
@@ -1272,56 +1292,60 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                     </div>
                                 </div>
                             </div>
-                            {/* Búsqueda por nombre o código */}
-                            <Input
-                                label="Nombre o código de producto"
-                                value={localSearch}
-                                onChange={e => setLocalSearch(e.target.value)}
-                                placeholder="Ej: Papel, PEN-001..."
-                            />
 
-                            {/* Categoría */}
-                            <Select
-                                label="Categoría"
-                                value={localCategoria}
-                                name={'Categoria'}
-                                onChange={e => setLocalCategoria(e.target.value)}
-                                options={contextData.categorias.map(c => ({ value: c.id_categoria, label: c.nombre_categoria }))}
-                            />
+                            {activeTab === 'productos' ? (
+                                <>
+                                    <Input
+                                        label="Nombre o código de producto"
+                                        value={localSearch}
+                                        onChange={e => setLocalSearch(e.target.value)}
+                                        placeholder="Ej: Papel, PEN-001..."
+                                    />
 
+                                    <Select
+                                        label="Categoría"
+                                        value={localCategoria}
+                                        name={'Categoria'}
+                                        onChange={e => setLocalCategoria(e.target.value)}
+                                        options={contextData.categorias.map(c => ({ value: c.id_categoria, label: c.nombre_categoria }))}
+                                    />
 
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Estado de Stock</p>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {[
+                                                { value: '', label: 'Todos', cls: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200' },
+                                                { value: 'aceptable', label: '✅ Aceptable', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
+                                                { value: 'critico', label: '🔴 Crítico', cls: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setLocalStockStatus(opt.value)}
+                                                    className={`px-4 py-1.5 rounded-full border text-xs font-bold transition-all ${localStockStatus === opt.value
+                                                        ? opt.value === 'critico'
+                                                            ? 'bg-red-600 text-white border-red-600 shadow-md'
+                                                            : opt.value === 'aceptable'
+                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                                                : 'bg-slate-700 text-white border-slate-700 shadow-md'
+                                                        : opt.cls
+                                                        }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <Input
+                                    label="Nombre o código de categoría"
+                                    value={localCategoriaSearch}
+                                    onChange={e => setLocalCategoriaSearch(e.target.value)}
+                                    placeholder="Ej: Herramientas, CAT-001..."
+                                />
+                            )}
 
-
-
-                            {/* Stock — chips de selección */}
-                            <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Estado de Stock</p>
-                                <div className="flex gap-2 flex-wrap">
-                                    {[
-                                        { value: '', label: 'Todos', cls: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200' },
-                                        { value: 'aceptable', label: '✅ Aceptable', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
-                                        { value: 'critico', label: '🔴 Crítico', cls: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            type="button"
-                                            onClick={() => setLocalStockStatus(opt.value)}
-                                            className={`px-4 py-1.5 rounded-full border text-xs font-bold transition-all ${localStockStatus === opt.value
-                                                ? opt.value === 'critico'
-                                                    ? 'bg-red-600 text-white border-red-600 shadow-md'
-                                                    : opt.value === 'aceptable'
-                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
-                                                        : 'bg-slate-700 text-white border-slate-700 shadow-md'
-                                                : opt.cls
-                                                }`}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Botones */}
                             <div className="flex justify-between gap-2 mt-1">
                                 <button
                                     type="button"
@@ -1329,6 +1353,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                         setLocalSearch('');
                                         setLocalCategoria('');
                                         setLocalStockStatus('');
+                                        setLocalCategoriaSearch('');
                                         if (onFilter) onFilter({ search: '', categoria: '', stockStatus: '' });
                                         setFilterModalOpen(false);
                                     }}
@@ -1339,7 +1364,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        if (onFilter) onFilter({
+                                        if (activeTab === 'productos' && onFilter) onFilter({
                                             search: localSearch,
                                             categoria: localCategoria,
                                             stockStatus: localStockStatus,
@@ -1370,7 +1395,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                 <div>
                                     <h3 className="text-xl font-extrabold tracking-tight text-slate-900">Enviar Mensaje</h3>
                                     <p className="text-sm text-slate-500 font-medium">
-                                        Solicitud #{mensajeSolicitud.id_solicitud} — {mensajeSolicitud.resumen}
+                                        Solicitud {mensajeSolicitud.codigo_solicitud || `#${mensajeSolicitud.id_solicitud}`} — {mensajeSolicitud.resumen}
                                     </p>
                                 </div>
                             </div>

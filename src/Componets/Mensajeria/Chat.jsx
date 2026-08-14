@@ -461,7 +461,7 @@ useEffect(() => {
               </div>
             )}
             <div className="flex flex-col">
-              <span className="font-bold text-slate-800 text-sm">{isGroup ? (solicitudContext?.solicitud?.resumen || user.name || `Solicitud #${user.idSolicitud || user.id_solicitud || ''}`) : user.name}</span>
+              <span className="font-bold text-slate-800 text-sm">{isGroup ? (solicitudContext?.solicitud?.resumen || user.name || `Solicitud ${solicitudContext?.solicitud?.codigo_solicitud || `#${user.idSolicitud || user.id_solicitud || ''}`}`) : user.name}</span>
               {isGroup ? (
                 <span className="text-[10px] text-slate-500 font-medium">Solicitud</span>
               ) : isOnline ? (
@@ -499,7 +499,7 @@ useEffect(() => {
               <h4 className="text-sm font-bold">Contexto: {solicitudContext.solicitud.resumen}</h4>
               <p className="text-xs text-slate-500">{solicitudContext.solicitud.justificacion}</p>
             </div>
-            <div className="text-xs text-slate-400">Solicitud #{solicitudContext.solicitud.id_solicitud}</div>
+            <div className="text-xs text-slate-400">Solicitud {solicitudContext.solicitud.codigo_solicitud || `#${solicitudContext.solicitud.id_solicitud}`}</div>
           </div>
           <div className="mt-3 grid grid-cols-1 gap-2 max-h-36 overflow-y-auto">
             {solicitudContext.detalles?.map(d => (

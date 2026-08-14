@@ -101,6 +101,7 @@ INSERT INTO solicitudes_compra (
     requerimientos_texto,
     requerimientos_pdf_url,
     tipo_solicitud,
+    codigo_solicitud,
     prioridad,
     id_estado,
     id_gerencia,
@@ -113,10 +114,11 @@ VALUES (
     ?,                -- 4. requerimientos_texto
     ?,                -- 5. requerimientos_pdf_url
     ?,                -- 6. tipo_solicitud
-    ?,                -- 7. prioridad
+    ?,                -- 7. codigo_solicitud
+    ?,                -- 8. prioridad
     (SELECT id_estado FROM estados_solicitud WHERE nombre = 'Pendiente' LIMIT 1),
-    ?,                -- 8. id_gerencia
-    ?                 -- 9. id_solicitante
+    ?,                -- 9. id_gerencia
+    ?                 -- 10. id_solicitante
 );
 `
 

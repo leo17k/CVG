@@ -68,6 +68,7 @@ export const getSolicitudesAlmacen = async (req, res) => {
         const [rows] = await pool.query(`
             SELECT
                 s.id_solicitud,
+                s.codigo_solicitud,
                 s.fecha_creacion,
                 s.resumen,
                 s.justificacion,
@@ -118,6 +119,7 @@ export const getSolicitudesCompras = async (req, res) => {
         const [rows] = await pool.query(`
             SELECT
                 s.id_solicitud,
+                s.codigo_solicitud,
                 s.fecha_creacion,
                 s.resumen,
                 s.justificacion,
@@ -155,6 +157,7 @@ export const getSolicitudById = async (req, res) => {
         const [soliRows] = await pool.execute(`
             SELECT
                 s.id_solicitud,
+                s.codigo_solicitud,
                 s.fecha_creacion,
                 s.resumen,
                 s.justificacion,
@@ -300,7 +303,12 @@ export const createSolicitud = async (req, res) => {
             return res.status(result.codigo).json(result);
         }
 
-        res.status(201).json({ mensaje: 'Solicitud creada con éxito', id: result.id, pdf: requerimientos_pdf_url });
+        res.status(201).json({
+            mensaje: 'Solicitud creada con éxito',
+            id: result.id,
+            codigo_solicitud: result.codigo_solicitud,
+            pdf: requerimientos_pdf_url
+        });
     } catch (error) {
         console.error('Error creando solicitud:', error);
         res.status(500).json({ mensaje: 'Error interno del servidor' });
@@ -393,13 +401,15 @@ export const updateEstado = async (req, res) => {
                     let destEmail = requester.email || 'esteysertorres2@gmail.com';
                     const nombresCompletos = `${requester.nombres} ${requester.apellidos}`;
 
+                    const codigoVisible = solicitud.codigo_solicitud || `#${id}`;
+
                     if (estadoFinal === 'Aprovadas') {
                         // Generar PDF y enviar correo de aprobación con adjunto
                         const pdfBuffer = await generarPDFBuffer(id);
-                        await sendApprovalEmail(destEmail, nombresCompletos, id, solicitud.resumen, pdfBuffer);
+                        await sendApprovalEmail(destEmail, nombresCompletos, codigoVisible, solicitud.resumen, pdfBuffer);
                     } else {
                         // Notificación de cambio de estado
-                        await sendStatusChangeEmail(destEmail, nombresCompletos, id, solicitud.resumen, estadoFinal);
+                        await sendStatusChangeEmail(destEmail, nombresCompletos, codigoVisible, solicitud.resumen, estadoFinal);
                     }
                 }
             } catch (emailErr) {
@@ -436,8 +446,8 @@ export const updateEstado = async (req, res) => {
 
         // Si la solicitud es de tipo Compra o Servicio y llegó a Aprovadas, enviar inmediatamente a Access (no bloquear respuesta)
         if (
-            estadoFinal === 'Aprovadas'
-            && ['Compra', 'Servicio'].includes(solicitud.tipo_solicitud)
+            ['Aprovadas', 'En Compras'].includes(estadoFinal)
+            && ['Compra', 'Servicio', 'Obra'].includes(solicitud.tipo_solicitud)
         ) {
             (async () => {
                 try {

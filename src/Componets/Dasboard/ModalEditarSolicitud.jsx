@@ -110,6 +110,11 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
   const [existingPdfUrl, setExistingPdfUrl] = useState(solicitud?.justificacion_pdf_url || null);
   const [existingPdfName, setExistingPdfName] = useState(solicitud?.justificacion_pdf_url ? (solicitud?.justificacion || '') : '');
 
+  const [reqModo, setReqModo] = useState(solicitud?.requerimientos_pdf_url ? 'archivo' : 'texto');
+  const [reqFile, setReqFile] = useState(null);
+  const [existingReqPdfUrl, setExistingReqPdfUrl] = useState(solicitud?.requerimientos_pdf_url || null);
+  const [existingReqPdfName, setExistingReqPdfName] = useState(solicitud?.requerimientos_pdf_url ? (solicitud?.requerimientos_texto || '') : '');
+
   const [requerimientos, setRequerimientos] = useState(solicitud?.requerimientos_texto || '');
   const [prioridad, setPrioridad] = useState(solicitud?.prioridad || 'Media');
   const [tipoSolicitud, setTipoSolicitud] = useState(solicitud?.tipo_solicitud || 'Compra');
@@ -226,10 +231,11 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
     setLoading(true);
     try {
       const finalJustificacionText = justModo === 'texto' ? justTexto : (justFile ? justFile.name : existingPdfName);
+      const finalRequerimientosText = reqModo === 'texto' ? requerimientos : (reqFile ? reqFile.name : existingReqPdfName);
       const fd = new FormData();
       fd.append('resumen', resumen);
       fd.append('justificacion', finalJustificacionText);
-      fd.append('requerimientos_texto', requerimientos);
+      fd.append('requerimientos_texto', finalRequerimientosText);
       fd.append('prioridad', prioridad);
       fd.append('tipo_solicitud', tipoSolicitud);
       fd.append('productos', JSON.stringify(selectedItems));
@@ -244,6 +250,16 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
         fd.append('justificacion_pdf_url', '');
       }
 
+      if (reqModo === 'archivo') {
+        if (reqFile) {
+          fd.append('requerimientos_pdf', reqFile);
+        } else if (existingReqPdfUrl) {
+          fd.append('requerimientos_pdf_url', existingReqPdfUrl);
+        }
+      } else {
+        fd.append('requerimientos_pdf_url', '');
+      }
+
       const response = await fetch(`${API}/solicitudes/${solicitud.id_solicitud}`, {
         method: 'PUT',
         credentials: 'include',
@@ -253,7 +269,7 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
       const json = await response.json();
       if (response.ok && json.success !== false) {
         toast.success('Operación Finalizada', {
-          description: `La solicitud #${solicitud.id_solicitud} ha sido actualizada correctamente.`,
+          description: `La solicitud ${solicitud.codigo_solicitud || `#${solicitud.id_solicitud}`} ha sido actualizada correctamente.`,
         });
         onRefresh();
         onClose();
@@ -300,7 +316,7 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
             <div>
               <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Editor de solicitudes</p>
               <h2 className="text-xl font-black text-slate-800">
-                Editar Solicitud #{solicitud?.id_solicitud}
+                Editar Solicitud {solicitud?.codigo_solicitud || `#${solicitud?.id_solicitud}`}
               </h2>
             </div>
             <div className="flex items-center gap-3">
@@ -393,10 +409,8 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 block uppercase tracking-wide">
-                      Justificación Técnica *
-                    </label>
-                    <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                  
+                    <div className="flex gap-2 p-1 mb-6 bg-slate-100 rounded-xl">
                       <button
                         type="button"
                         onClick={() => {
@@ -409,8 +423,7 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
                             });
                           }
                         }}
-                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                          }`}
+                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
                       >
                         Texto
                       </button>
@@ -426,8 +439,7 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
                             });
                           }
                         }}
-                        className={`flex-1 py-2 ${justTexto === null || '' ? 'text-blue-500' : 'hidden text-red-500'} rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                          }`}
+                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${justModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
                       >
                         Adjuntar PDF
                       </button>
@@ -435,7 +447,7 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
 
                     {justModo === 'texto' ? (
                       <TextArea
-                        label=""
+                        label="Justificación Tecnica"
                         name="justificacion"
                         defaultValue={justTexto}
                         onChange={e => {
@@ -511,13 +523,86 @@ export default function ModalEditarSolicitud({ solicitud, detallesIniciales, onC
                     )}
                   </div>
 
-                  <TextArea
-                    label="Requerimientos Adicionales"
-                    name="requerimientos"
-                    defaultValue={requerimientos}
-                    onChange={e => setRequerimientos(e.target.value)}
-                    placeholder="Indique requerimientos técnicos específicos..."
-                  />
+                  
+
+                  <div className="space-y-2">
+                  
+                    <div className="flex gap-2 p-1 mb-6 bg-slate-100 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReqModo('texto');
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'texto' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Texto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReqModo('archivo');
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${reqModo === 'archivo' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        PDF
+                      </button>
+                    </div>
+
+                    {reqModo === 'texto' ? (
+                      <TextArea
+                        label="Requerimientos Adicionales"
+                        name="requerimientos"
+                        defaultValue={requerimientos}
+                        onChange={e => setRequerimientos(e.target.value)}
+                        placeholder="Indique requerimientos técnicos específicos..."
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {existingReqPdfUrl && !reqFile && (
+                          <div className="flex items-center justify-between p-4 bg-amber-50/60 border border-amber-100 rounded-2xl">
+                            <div className="flex items-center gap-3">
+                              <FileText className="text-amber-600 shrink-0" size={18} />
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Archivo Guardado</p>
+                                <p className="text-xs font-bold text-slate-700 truncate max-w-[240px]">
+                                  {existingReqPdfName || 'requerimientos.pdf'}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 rounded-md">
+                              Guardado
+                            </span>
+                          </div>
+                        )}
+
+                        <div
+                          onClick={() => document.getElementById('edit-req-pdf-up').click()}
+                          className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:bg-slate-50 transition-all text-center"
+                        >
+                          <Upload size={24} className="text-slate-300" />
+                          <span className="text-xs font-bold text-slate-500">
+                            {reqFile
+                              ? `✅ Nuevo archivo: ${reqFile.name}`
+                              : existingReqPdfUrl
+                                ? 'Haga clic para reemplazar el PDF de requerimientos'
+                                : 'Haga clic para seleccionar o arrastrar un archivo PDF'}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-widest font-semibold text-slate-400">Solo archivos PDF (máx. 10MB)</span>
+                          <input
+                            id="edit-req-pdf-up"
+                            type="file"
+                            hidden
+                            accept=".pdf"
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                setReqFile(e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">

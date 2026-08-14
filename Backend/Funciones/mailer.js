@@ -136,7 +136,8 @@ export const sendResetPasswordEmail = async (to, nombres, username, resetLink) =
 /**
  * Send status change notifications.
  */
-export const sendStatusChangeEmail = async (to, nombres, idSolicitud, resumen, nuevoEstado) => {
+export const sendStatusChangeEmail = async (to, nombres, codigoSolicitud, resumen, nuevoEstado) => {
+    const codigoVisible = codigoSolicitud || '#sin-codigo';
     // Color map based on states
     let badgeColor = '#64748b'; // default
     if (nuevoEstado === 'Pendiente') badgeColor = '#f59e0b';
@@ -183,8 +184,8 @@ export const sendStatusChangeEmail = async (to, nombres, idSolicitud, resumen, n
                 <p>Te informamos que tu solicitud de compra ha registrado una actualización de estado en el sistema.</p>
                 <div class="info-box">
                     <div class="info-row">
-                        <div class="info-label">Solicitud N°:</div>
-                        <div class="info-value">#${idSolicitud}</div>
+                        <div class="info-label">Solicitud:</div>
+                        <div class="info-value">${codigoVisible}</div>
                     </div>
                     <div class="info-row">
                         <div class="info-label">Resumen:</div>
@@ -211,7 +212,7 @@ export const sendStatusChangeEmail = async (to, nombres, idSolicitud, resumen, n
 
     return sendEmail({
         to,
-        subject: `Actualización de Solicitud #${idSolicitud} - ${nuevoEstado}`,
+        subject: `Actualización de ${codigoVisible} - ${nuevoEstado}`,
         html,
         attachments: getCommonAttachments()
     });
@@ -220,7 +221,8 @@ export const sendStatusChangeEmail = async (to, nombres, idSolicitud, resumen, n
 /**
  * Send approval email attaching the PDF.
  */
-export const sendApprovalEmail = async (to, nombres, idSolicitud, resumen, pdfBuffer) => {
+export const sendApprovalEmail = async (to, nombres, codigoSolicitud, resumen, pdfBuffer) => {
+    const codigoVisible = codigoSolicitud || '#sin-codigo';
     const html = `
     <!DOCTYPE html>
     <html>
@@ -259,8 +261,8 @@ export const sendApprovalEmail = async (to, nombres, idSolicitud, resumen, pdfBu
                 <p>Nos complace informarte que tu solicitud de compra ha sido <strong>APROBADA</strong> oficialmente por el departamento de Procura y Logística.</p>
                 <div class="info-box">
                     <div class="info-row">
-                        <div class="info-label">Solicitud N°:</div>
-                        <div class="info-value">#${idSolicitud}</div>
+                        <div class="info-label">Solicitud:</div>
+                        <div class="info-value">${codigoVisible}</div>
                     </div>
                     <div class="info-row">
                         <div class="info-label">Resumen:</div>
@@ -287,12 +289,12 @@ export const sendApprovalEmail = async (to, nombres, idSolicitud, resumen, pdfBu
 
     return sendEmail({
         to,
-        subject: `Comprobante de Solicitud Aprobada #${idSolicitud}`,
+        subject: `Comprobante de Solicitud Aprobada ${codigoVisible}`,
         html,
         attachments: [
             ...getCommonAttachments(),
             {
-                filename: `Comprobante-SCS-${idSolicitud}.pdf`,
+                filename: `Comprobante-SCS-${codigoVisible.replace(/[^a-zA-Z0-9_-]/g, '-')}.pdf`,
                 content: pdfBuffer,
                 contentType: 'application/pdf'
             }

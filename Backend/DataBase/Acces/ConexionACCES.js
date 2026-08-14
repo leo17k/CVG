@@ -25,14 +25,25 @@ function buildConnection(filePath, label) {
 const connection = buildConnection(almacenPath, 'ACCESS_ALMACEN_PATH');
 const connectionCompras = buildConnection(comprasPath, 'ACCESS_COMPRAS_PATH');
 
+const lastStatusLog = {
+    almacen: null,
+    compras: null,
+};
+
 async function statusconnection() {
     if (!connection) return false;
     try {
         await connection.query('SELECT * FROM tiporepuesto');
-        console.log(green('[ACCES] Conexión Almacén exitosa'));
+        if (lastStatusLog.almacen !== 'ok') {
+            console.log(green('[ACCES] Conexión Almacén exitosa'));
+            lastStatusLog.almacen = 'ok';
+        }
         return true;
     } catch (error) {
-        console.error(red('[ACCES] Error al conectar Almacén:'), error?.message ?? error);
+        if (lastStatusLog.almacen !== 'error') {
+            console.error(red('[ACCES] Error al conectar Almacén:'), error?.message ?? error);
+            lastStatusLog.almacen = 'error';
+        }
         return false;
     }
 }
@@ -41,15 +52,24 @@ async function statusconnectionCompras() {
     if (!connectionCompras) return false;
     try {
         await connectionCompras.query('SELECT * FROM REQCOMPRA');
-        console.log(green('[ACCES] Conexión Compras exitosa'));
+        if (lastStatusLog.compras !== 'ok') {
+            console.log(green('[ACCES] Conexión Compras exitosa'));
+            lastStatusLog.compras = 'ok';
+        }
         return true;
     } catch (error) {
-        console.error(red('[ACCES] Error al conectar Compras:'), error?.message ?? error);
+        if (lastStatusLog.compras !== 'error') {
+            console.error(red('[ACCES] Error al conectar Compras:'), error?.message ?? error);
+            lastStatusLog.compras = 'error';
+        }
         return false;
     }
 }
 
-statusconnection();
-statusconnectionCompras();
+if (!globalThis.__cvgAccessStatusChecksInitialized) {
+    globalThis.__cvgAccessStatusChecksInitialized = true;
+    statusconnection();
+    statusconnectionCompras();
+}
 
 export { connection, statusconnection, connectionCompras, statusconnectionCompras };

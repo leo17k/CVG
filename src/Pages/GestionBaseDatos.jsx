@@ -95,6 +95,24 @@ export default function GestionBaseDatos() {
   // Control de modales
   const [backupModal, setBackupModal] = useState(false);
   const [restoreModal, setRestoreModal] = useState(false);
+  const [counterModalOpen, setCounterModalOpen] = useState(false);
+  const [counterState, setCounterState] = useState({ status: 'idle', message: '', data: [] });
+  const [counterForm, setCounterForm] = useState({
+    tipo_solicitud: 'Compra',
+    anio: new Date().getFullYear(),
+    contador: 0,
+  });
+
+  const openCounterModal = (tipo = 'Compra') => {
+    const currentYear = new Date().getFullYear();
+    const current = counterState.data.find(item => item.tipo_solicitud === tipo && Number(item.anio) === currentYear);
+    setCounterForm({
+      tipo_solicitud: tipo,
+      anio: currentYear,
+      contador: Number(current?.contador || 0),
+    });
+    setCounterModalOpen(true);
+  };
 
   // Modal y datos para seleccionar backups en servidor
   const [serverListModal, setServerListModal] = useState(false);
@@ -190,8 +208,20 @@ export default function GestionBaseDatos() {
     }
   };
 
+  const fetchSolicitudCounters = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/configuracion/solicitudes`, { credentials: 'include' });
+      if (!res.ok) throw new Error('No se pudo cargar la configuración del contador');
+      const json = await res.json();
+      setCounterState({ status: 'success', message: 'Contador actualizado', data: json.data || [] });
+    } catch (err) {
+      setCounterState({ status: 'error', message: err.message || 'Error al cargar contador', data: [] });
+    }
+  };
+
   useEffect(() => {
     fetchHistory();
+    fetchSolicitudCounters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -268,6 +298,60 @@ export default function GestionBaseDatos() {
     callApi('/api/restore/upload', { method: 'POST', body: form },
       setRestState, 'Restauración desde Archivo', 'Crítico');
   };
+
+  const handleSaveCounterConfig = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/configuracion/solicitudes`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo_solicitud: counterForm.tipo_solicitud,
+          anio: Number(counterForm.anio),
+          contador: Number(counterForm.contador),
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'No se pudo guardar el contador');
+      toast.success(json.message || 'Contador actualizado');
+      setCounterModalOpen(false);
+      await fetchSolicitudCounters();
+    } catch (err) {
+      toast.error(err.message || 'No se pudo guardar el contador');
+    }
+  };
+
+  const handleResetCounter = async () => {
+    try {
+      const res = await fetch(`${BASE}/api/configuracion/solicitudes/reset`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo_solicitud: counterForm.tipo_solicitud,
+          anio: Number(counterForm.anio),
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'No se pudo reiniciar el contador');
+      toast.success(json.message || 'Contador reiniciado');
+      setCounterModalOpen(false);
+      await fetchSolicitudCounters();
+    } catch (err) {
+      toast.error(err.message || 'No se pudo reiniciar el contador');
+    }
+  };
+
+  const counterRows = Array.from({ length: 3 }, (_, index) => {
+    const tipo = ['Compra', 'Servicio', 'Obra'][index];
+    const row = counterState.data.find(item => item.tipo_solicitud === tipo && item.anio === Number(counterForm.anio));
+    return {
+      tipo,
+      contador: Number(row?.contador || 0),
+      anio: Number(counterForm.anio),
+      updated: row?.actualizado_en || null,
+    };
+  });
 
   // ─── Contenido del Modal de Backup ────────────────────────────────────────
   const contenidoBackup = (
@@ -453,7 +537,7 @@ export default function GestionBaseDatos() {
 );
 
   return (
-    <div className="ml-[60px] max-lg:ml-0 min-h-[calc(100dvh-60px)] bg-zinc-50 p-6 md:p-8 flex flex-col gap-8">
+    <div className="ml-[60px] max-lg:ml-0 overflow-y-scroll custom-scrollbar  h-[calc(100dvh-60px)] bg-zinc-50 p-6 md:p-8 flex flex-col gap-8">
 
       {/* Encabezado */}
       <div className="flex items-start gap-4">
@@ -526,56 +610,94 @@ export default function GestionBaseDatos() {
         </div>
       </div>
 
-      {/* Historial */}
-      <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden custom-scrollba">
-        <div className="px-6 py-4 border-b border-zinc-100 flex items-center gap-2 custom-scrollba">
-          <Activity size={15} className="text-zinc-400" />
-          <h2 className="text-sm font-bold text-zinc-800">Historial de Operaciones</h2>
-          <span className="ml-auto text-[11px] font-semibold text-zinc-400">{historial.length} registros</span>
-        </div>
-        <div className="overflow-auto flex-1 max-h-[58dvh] custom-scrollba">
-          <table className="w-full text-left text-sm overflow-auto h-full custom-scrollbar">
-            <thead>
-              <tr className="border-b border-zinc-100 bg-zinc-50/60">
-                {['Acción', 'Responsable', 'Grado', 'Tiempo'].map(h => (
-                  <th key={h} className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider last:text-right">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50 custom-scrollba">
-              {historial.map(row => (
-                <tr key={row.id} className="hover:bg-zinc-50/50 transition-colors">
-                  <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 shrink-0" />
-                      <span className="font-medium text-zinc-800 text-[13px]">{row.accion}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-2 text-zinc-500 text-[13px]">
-                      <User size={12} className="shrink-0" />{row.responsable}
-                    </div>
-                  </td>
-                  <td className="px-6 py-3.5"><GradoBadge grado={row.grado} /></td>
-                  <td className="px-6 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1.5 text-zinc-400 text-[12px] font-mono">
-                      <Clock size={11} />{row.tiempo}
-                    </div>
-                  </td>
+ 
+      {/* Historial y contador */}
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-100 flex items-center gap-2">
+            <Activity size={15} className="text-zinc-400" />
+            <h2 className="text-sm font-bold text-zinc-800">Historial de Operaciones</h2>
+            <span className="ml-auto text-[11px] font-semibold text-zinc-400">{historial.length} registros</span>
+          </div>
+          <div className="overflow-auto custom-scrollbar max-h-[75dvh]">
+            <table className="w-full text-left custom-scrollbar text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 bg-zinc-50/60">
+                  {['Acción', 'Responsable', 'Grado', 'Tiempo'].map(h => (
+                    <th key={h} className="px-6 py-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider last:text-right">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y custom-scrollbar divide-zinc-50">
+                {historial.map(row => (
+                  <tr key={row.id} className="hover:bg-zinc-50/50 transition-colors">
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 shrink-0" />
+                        <span className="font-medium text-zinc-800 text-[13px]">{row.accion}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-2 text-zinc-500 text-[13px]">
+                        <User size={12} className="shrink-0" />{row.responsable}
+                      </div>
+                    </td>
+                    <td className="px-6 py-3.5"><GradoBadge grado={row.grado} /></td>
+                    <td className="px-6 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5 text-zinc-400 text-[12px] font-mono">
+                        <Clock size={11} />{row.tiempo}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-6 py-3 border-t border-zinc-100 flex items-center gap-2 bg-zinc-50/40">
+            <AlertTriangle size={12} className="text-amber-500 shrink-0" />
+            <p className="text-[11px] text-zinc-400">
+              Sanitizador activo — bloquea: <code className="bg-zinc-100 px-1 rounded">DROP DATABASE</code>·
+              <code className="bg-zinc-100 px-1 rounded">ALTER USER</code>·
+              <code className="bg-zinc-100 px-1 rounded">GRANT</code>·
+              <code className="bg-zinc-100 px-1 rounded">SHUTDOWN</code> y comillas desbalanceadas.
+            </p>
+          </div>
         </div>
-        <div className="px-6 py-3 border-t border-zinc-100 flex items-center gap-2 bg-zinc-50/40">
-          <AlertTriangle size={12} className="text-amber-500 shrink-0" />
-          <p className="text-[11px] text-zinc-400">
-            Sanitizador activo — bloquea: <code className="bg-zinc-100 px-1 rounded">DROP DATABASE</code>·
-            <code className="bg-zinc-100 px-1 rounded">ALTER USER</code>·
-            <code className="bg-zinc-100 px-1 rounded">GRANT</code>·
-            <code className="bg-zinc-100 px-1 rounded">SHUTDOWN</code> y comillas desbalanceadas.
-          </p>
-        </div>
+
+        <aside className="w-full xl:w-[280px] shrink-0 bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm">
+          <div className="mb-4">
+            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Contador anual de solicitudes</p>
+            <h2 className="text-base font-black text-zinc-800 mt-1">Estado del código visible</h2>
+          </div>
+
+          <div className="space-y-3">
+            {counterRows.map(item => (
+              <div key={item.tipo} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-400">{item.tipo}</span>
+                  <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px] font-bold">{item.anio}</span>
+                </div>
+                <p className="mt-3 text-3xl font-black text-zinc-800">{item.contador}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">{item.updated ? `Actualizado: ${new Date(item.updated).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin registro aún'}</p>
+
+                <button
+                  type="button"
+                  onClick={() => openCounterModal(item.tipo)}
+                  className="mt-4 w-full px-2.5 py-1.5 rounded-lg bg-zinc-900 text-white text-[11px] font-semibold hover:bg-zinc-800"
+                >
+                  Configurar
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {counterState.status !== 'idle' && (
+            <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+              <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.12em]">Estado general</p>
+              <p className="text-sm text-zinc-700 mt-1">{counterState.message}</p>
+            </div>
+          )}
+        </aside>
       </div>
 
       {/* Modales */}
@@ -603,6 +725,41 @@ export default function GestionBaseDatos() {
           title="Puntos de restauración en servidor"
           contenido={contenidoServerList}
           padding={true}
+        />
+      )}
+
+      {counterModalOpen && (
+        <Modal
+          onClose={() => setCounterModalOpen(false)}
+          title={`${counterForm.tipo_solicitud} · ${counterForm.anio}`}
+          contenido={
+            <div className="w-[420px] max-sm:w-full flex flex-col gap-4">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">Formato</p>
+                <p className="mt-1 text-sm text-zinc-700">{counterForm.tipo_solicitud === 'Compra' ? 'C' : counterForm.tipo_solicitud === 'Servicio' ? 'S' : 'O'}-{counterForm.anio || new Date().getFullYear()}-{counterForm.contador || 0}</p>
+              </div>
+
+              <label className="flex flex-col gap-1.5 text-[12px] font-medium text-zinc-600">
+                Valor desde el que empieza a contar
+                <input
+                  type="number"
+                  min={0}
+                  value={counterForm.contador}
+                  onChange={(e) => setCounterForm(prev => ({ ...prev, contador: Number(e.target.value) || 0 }))}
+                  className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={handleSaveCounterConfig}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          }
         />
       )}
 

@@ -9,6 +9,7 @@ export default function User() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [filtros, setFiltros] = useState({ busqueda: '', gerencia: '', columna: 'nombres', rol: '' });
 
     const host = window.location.hostname;
 
@@ -43,10 +44,16 @@ export default function User() {
         }
     };
 
-    const fetchUsers = async (page = currentPage) => {
+    const fetchUsers = async (page = 1, nextFiltros = filtros) => {
         setLoading(true);
         try {
-            const resp = await fetch(`http://${host}:5000/users?page=${page}&limit=12`, { credentials: 'include' });
+            const params = new URLSearchParams({ page: String(page), limit: '12' });
+            const busquedaValor = nextFiltros?.columna === 'id_rol' ? (nextFiltros?.rol ?? nextFiltros?.busqueda) : nextFiltros?.busqueda;
+            if (busquedaValor) params.set('busqueda', String(busquedaValor));
+            if (nextFiltros?.gerencia) params.set('gerencia', nextFiltros.gerencia);
+            if (nextFiltros?.columna) params.set('columna', nextFiltros.columna);
+
+            const resp = await fetch(`http://${host}:5000/users?${params.toString()}`, { credentials: 'include' });
             if (resp.ok) {
                 const j = await resp.json();
                 setUsers(j.usuarios || []);
@@ -61,10 +68,16 @@ export default function User() {
         setLoading(false);
     };
 
+    const handleFilterChange = (nextFiltros) => {
+        setFiltros(nextFiltros);
+        setCurrentPage(1);
+        fetchUsers(1, nextFiltros);
+    };
+
     useEffect(() => {
         fetchSession();
         fetchContext();
-        fetchUsers(1);
+        fetchUsers(1, filtros);
     }, []);
 
     return (
@@ -80,12 +93,14 @@ export default function User() {
                             isAdmin={isAdmin}
                             currentPage={currentPage}
                             totalPages={totalPages}
+                            filtrosActuales={filtros}
+                            onFilter={handleFilterChange}
                             onPageChange={(page) => {
                                 if (page < 1 || page > totalPages) return;
                                 setCurrentPage(page);
-                                fetchUsers(page);
+                                fetchUsers(page, filtros);
                             }}
-                            onUserCreated={() => fetchUsers(currentPage)}
+                            onUserCreated={() => fetchUsers(currentPage, filtros)}
                         />
                     </div>
                     <div className="col-start-5 relative col-end-6 row-start-1 row-end-10 flex flex-col max-sm:h-max w-full  bg-white/80 backdrop-blur-md border border-gray-200 gap-6 rounded-3xl shadow-2xl p-6 transition-all duration-300 hover:shadow-blue-100/50">

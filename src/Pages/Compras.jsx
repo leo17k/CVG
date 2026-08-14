@@ -27,7 +27,7 @@ const SolicitudCard = ({ row, onFinalizar, onRechazar }) => {
                     </div>
                     <div className="min-w-0">
                         <p className="font-black text-slate-800 text-sm truncate">
-                            #{row.id_solicitud} — {row.resumen}
+                            {row.codigo_solicitud || `#${row.id_solicitud}`} — {row.resumen}
                         </p>
                         <p className="text-xs text-slate-400 truncate">{row.nombre_gerencia}</p>
                     </div>
@@ -130,7 +130,7 @@ const ComprasPage = () => {
             });
             if (res.ok) {
                 const j = await res.json();
-                toast.success(`${estado === 'Finalizado' ? '✅ Compra finalizada' : '❌ Solicitud rechazada'} — La solicitud #${row.id_solicitud} fue actualizada a: ${j.estado || estado}.`);
+                toast.success(`${estado === 'Finalizado' ? '✅ Compra finalizada' : '❌ Solicitud rechazada'} — La solicitud ${row.codigo_solicitud || `#${row.id_solicitud}`} fue actualizada a: ${j.estado || estado}.`);
                 fetchSolicitudes();
             } else {
                 const j = await res.json();
@@ -152,7 +152,7 @@ const ComprasPage = () => {
                 isOpen={!!confirmFinalizar}
                 type="question"
                 title="¿Finalizar compra?"
-                message={`La solicitud #${confirmFinalizar?.id_solicitud} "${confirmFinalizar?.resumen}" será marcada como Finalizada.`}
+                message={`La solicitud ${confirmFinalizar?.codigo_solicitud || `#${confirmFinalizar?.id_solicitud}`} "${confirmFinalizar?.resumen}" será marcada como Finalizada.`}
                 onConfirm={() => cambiarEstado(confirmFinalizar, 'Finalizado')}
                 onCancel={() => setConfirmFinalizar(null)}
             />
@@ -162,7 +162,7 @@ const ComprasPage = () => {
                 isOpen={!!confirmRechazar}
                 type="warning"
                 title="¿Rechazar solicitud?"
-                message={`La solicitud #${confirmRechazar?.id_solicitud} "${confirmRechazar?.resumen}" será rechazada. Esta acción no se puede deshacer.`}
+                message={`La solicitud ${confirmRechazar?.codigo_solicitud || `#${confirmRechazar?.id_solicitud}`} "${confirmRechazar?.resumen}" será rechazada. Esta acción no se puede deshacer.`}
                 onConfirm={() => cambiarEstado(confirmRechazar, 'Rechazado')}
                 onCancel={() => setConfirmRechazar(null)}
             />

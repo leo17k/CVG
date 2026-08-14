@@ -31,8 +31,11 @@ export const getUsers = async (req, res) => {
     }
 
     if (columna && busqueda) {
-        const camposPermitidos = ['nombres', 'apellidos', 'email', 'username', 'cedula', 'id_usuario'];
-        if (camposPermitidos.includes(columna)) {
+        const camposPermitidos = ['nombres', 'apellidos', 'email', 'username', 'cedula', 'id_usuario', 'id_rol'];
+        if (columna === 'id_rol') {
+            conditions.push('u.id_rol = ?');
+            params.push(Number(busqueda));
+        } else if (camposPermitidos.includes(columna)) {
             conditions.push(`u.${columna} LIKE ?`);
             params.push(`%${busqueda}%`);
         } else if (columna === 'rol' || columna === 'nombre_rol') {
