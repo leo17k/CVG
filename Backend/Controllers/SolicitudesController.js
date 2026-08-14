@@ -13,15 +13,21 @@ import { generarPDFBuffer } from '../Milaware/PDF.js';
 import { sendStatusChangeEmail, sendApprovalEmail } from '../Funciones/mailer.js';
 import { connection as connectionAccess } from '../DataBase/Acces/ConexionACCES.js';
 import { sendSolicitudToAccess } from '../DataBase/Acces/accessJobs.js';
+import { normalizarNombreEstado, obtenerAliasesEstado } from '../Funciones/estadosSolicitud.js';
 
 // ── Helper privado ────────────────────────────────────────────────────────────
 const getEstadoId = async (nombre) => {
-    const [rows] = await pool.query(
-       'SELECT id_estado, color_hex FROM estados_solicitud WHERE nombre = ? LIMIT 1',
-        [nombre]
-    );
-    if (!rows.length) throw new Error(`Estado '${nombre}' no existe en estados_solicitud`);
-    return rows[0];
+    const candidatos = obtenerAliasesEstado(nombre);
+
+    for (const candidato of candidatos) {
+        const [rows] = await pool.query(
+            'SELECT id_estado, color_hex FROM estados_solicitud WHERE nombre = ? LIMIT 1',
+            [candidato]
+        );
+        if (rows.length) return rows[0];
+    }
+
+    throw new Error(`Estado '${nombre}' no existe en estados_solicitud`);
 };
 
 // GET /solicitudes
@@ -336,6 +342,8 @@ export const updateEstado = async (req, res) => {
         if (!req.session.isLoggedIn) return res.status(401).json({ success: false, message: 'No autenticado' });
         if (!estado)                 return res.status(400).json({ success: false, message: 'Estado requerido' });
 
+        const estadoSolicitado = normalizarNombreEstado(estado);
+
         const [soliRows] = await pool.query(
             `SELECT s.*, e.nombre AS estado_actual, s.tipo_solicitud
              FROM solicitudes_compra s
@@ -348,8 +356,8 @@ export const updateEstado = async (req, res) => {
         const solicitud = soliRows[0];
 
         // Enrutamiento automático: Servicio/Obra aprobado por gerencia → En Compras directamente
-        let estadoFinal = estado;
-        if (estado === 'Aprobado Gerencia' && ['Servicio', 'Obra'].includes(solicitud.tipo_solicitud)) {
+        let estadoFinal = estadoSolicitado;
+        if (estadoSolicitado === 'Aprobado Gerencia' && ['Servicio', 'Obra'].includes(solicitud.tipo_solicitud)) {
             estadoFinal = 'En Compras';
         }
 
@@ -368,6 +376,7 @@ export const updateEstado = async (req, res) => {
         }
 
         const estadoInfo = await getEstadoId(estadoFinal);
+        const estadoPersistido = estadoInfo.nombre || estadoFinal;
         await pool.execute('UPDATE solicitudes_compra SET id_estado = ? WHERE id_solicitud = ?', [estadoInfo.id_estado, id]);
 
         // Historial
@@ -375,12 +384,12 @@ export const updateEstado = async (req, res) => {
         await pool.query(
             `INSERT INTO historial_estados (id_solicitud, estado_anterior, estado_nuevo, usuario_responsable)
              VALUES (?, ?, ?, ?)`,
-            [id, solicitud.estado_actual, estadoFinal, nombreUsuario]
+            [id, solicitud.estado_actual, estadoPersistido, nombreUsuario]
         );
 
         // Notificación al solicitante via DB + Socket
-        const dbStatus = estadoFinal === 'Rechazado' ? 'error' : estadoFinal === 'Finalizado' ? 'ok' : 'info';
-        const contenido = `Tu solicitud "${solicitud.resumen}" pasó a: ${estadoFinal}.`;
+        const dbStatus = estadoPersistido === 'Rechazado' ? 'error' : estadoPersistido === 'Finalizado' ? 'ok' : 'info';
+        const contenido = `Tu solicitud "${solicitud.resumen}" pasó a: ${estadoPersistido}.`;
         const [resNotif] = await pool.query(
             'INSERT INTO notificaciones (id_solicitud, contenido, status) VALUES (?, ?, ?)',
             [id, contenido, dbStatus]
@@ -413,13 +422,13 @@ export const updateEstado = async (req, res) => {
 
                     const codigoVisible = solicitud.codigo_solicitud || `#${id}`;
 
-                    if (estadoFinal === 'Aprovadas') {
+                    if (estadoPersistido === 'Aprovadas' || estadoPersistido === 'Aprobadas') {
                         // Generar PDF y enviar correo de aprobación con adjunto
                         const pdfBuffer = await generarPDFBuffer(id);
                         await sendApprovalEmail(destEmail, nombresCompletos, codigoVisible, solicitud.resumen, pdfBuffer);
                     } else {
                         // Notificación de cambio de estado
-                        await sendStatusChangeEmail(destEmail, nombresCompletos, codigoVisible, solicitud.resumen, estadoFinal);
+                        await sendStatusChangeEmail(destEmail, nombresCompletos, codigoVisible, solicitud.resumen, estadoPersistido);
                     }
                 }
             } catch (emailErr) {
@@ -457,7 +466,7 @@ export const updateEstado = async (req, res) => {
         // Si la solicitud es de tipo Compra/Servicio/Obra y llegó a Aprovadas, sincronizar a Access en segundo plano
         // sin bloquear la respuesta del backend ni el cierre del modal en frontend.
         if (
-            ['Aprovadas', 'En Compras'].includes(estadoFinal)
+            ['Aprovadas', 'Aprobadas', 'En Compras'].includes(estadoPersistido)
             && ['Compra', 'Servicio', 'Obra'].includes(solicitud.tipo_solicitud)
         ) {
             void (async () => {
@@ -482,8 +491,8 @@ export const updateEstado = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: `Estado actualizado a: ${estadoFinal}`,
-            estado: estadoFinal,
+            message: `Estado actualizado a: ${estadoPersistido}`,
+            estado: estadoPersistido,
             color: estadoInfo.color_hex
         });
     } catch (error) {
