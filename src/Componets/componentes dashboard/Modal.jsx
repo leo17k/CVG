@@ -48,7 +48,7 @@ const Modal = ({ onClose, hidden = false, contenido, padding = true, title, full
         <Close onClose={handleClose} hidden={hidden} />
 
         {/* Contenedor de contenido optimizado */}
-        <div className={`w-full h-full custom-scrollbar ${padding ? 'p-8' : 'p-0'}`}>
+        <div className={`w-full h-full custom-scrollbar overflow-auto ${padding ? 'p-8' : 'p-0'}`}>
           {contenido}
         </div>
       </div>

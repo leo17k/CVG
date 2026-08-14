@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/categorias', InventarioController.getCategorias);
 router.post('/categorias', InventarioController.createCategoria);
+router.get('/unidades', InventarioController.getUnidades);
 
 router.get('/productos', InventarioController.getProductos);
 router.post('/productos', InventarioController.createProducto);

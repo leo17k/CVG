@@ -57,6 +57,21 @@ export const createCategoria = async (req, res) => {
 
 // ── Productos ─────────────────────────────────────────────────────────────────
 
+// GET /unidades
+export const getUnidades = async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT id_unidad, nombre_unidad, abreviatura
+            FROM unidades_medida
+            ORDER BY nombre_unidad ASC
+        `);
+        res.status(200).json({ data: rows });
+    } catch (error) {
+        console.error('Error al obtener unidades de medida:', error);
+        res.status(500).json({ error: 'Error del servidor' });
+    }
+};
+
 // GET /productos
 export const getProductos = async (req, res) => {
     try {
@@ -96,9 +111,12 @@ export const getProductos = async (req, res) => {
                 p.stock_minimo,
                 p.id_unidad,
                 c.nombre_categoria,
-                c.codigo AS codigo_categoria
+                c.codigo AS codigo_categoria,
+                u.nombre_unidad,
+                u.abreviatura
             FROM productos_almacen p
             LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
+            LEFT JOIN unidades_medida u ON p.id_unidad = u.id_unidad
             ${whereClause}
         `;
 
@@ -177,7 +195,7 @@ export const updateProducto = async (req, res) => {
     }
     try {
         const { id } = req.params;
-        const { nombre_producto, descripcion, id_categoria, stock_minimo, codigo_producto } = req.body;
+        const { nombre_producto, descripcion, id_categoria, stock_minimo, codigo_producto, id_unidad } = req.body;
 
         if (!nombre_producto || !id_categoria) {
             return res.status(400).json({ error: 'Nombre y categoría son obligatorios.' });
@@ -185,17 +203,18 @@ export const updateProducto = async (req, res) => {
 
         const [result] = await pool.query(
             `UPDATE productos_almacen
-             SET nombre_producto = ?, descripcion = ?, id_categoria = ?, stock_minimo = ?, codigo_producto = ?
+             SET nombre_producto = ?, descripcion = ?, id_categoria = ?, stock_minimo = ?, codigo_producto = ?, id_unidad = ?
              WHERE id_producto = ?`,
-            [nombre_producto, descripcion || null, id_categoria, stock_minimo ?? 0, codigo_producto || null, id]
+            [nombre_producto, descripcion || null, id_categoria, stock_minimo ?? 0, codigo_producto || null, id_unidad ?? null, id]
         );
 
         if (result.affectedRows === 0) return res.status(404).json({ error: 'Producto no encontrado.' });
 
         const [[updated]] = await pool.query(
-            `SELECT p.*, c.nombre_categoria, c.codigo as codigo_categoria
+            `SELECT p.*, c.nombre_categoria, c.codigo as codigo_categoria, u.nombre_unidad, u.abreviatura
              FROM productos_almacen p
              LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
+             LEFT JOIN unidades_medida u ON p.id_unidad = u.id_unidad
              WHERE p.id_producto = ?`,
             [id]
         );

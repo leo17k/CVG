@@ -41,14 +41,16 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
     useEffect(() => {
         const fetchContext = async () => {
             try {
-                const [cats, gers] = await Promise.all([
+                const [cats, gers, units] = await Promise.all([
                     fetch(`http://${window.location.hostname}:5000/categorias`, { credentials: 'include' }).then(r => r.json()),
-                    fetch(`http://${window.location.hostname}:5000/context`, { credentials: 'include' }).then(r => r.json())
+                    fetch(`http://${window.location.hostname}:5000/context`, { credentials: 'include' }).then(r => r.json()),
+                    fetch(`http://${window.location.hostname}:5000/unidades`, { credentials: 'include' }).then(r => r.json())
                 ]);
                 setContextData(prev => ({
                     ...prev,
                     categorias: cats.data || [],
-                    gerencias: gers.gerencias || []
+                    gerencias: gers.gerencias || [],
+                    unidades: units.data || []
                 }));
             } catch (err) {
                 console.error('Error al cargar context:', err);
@@ -228,6 +230,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
             codigo_producto: selected.codigo_producto || '',
             descripcion: selected.descripcion || '',
             id_categoria: selected.id_categoria || '',
+            id_unidad: selected.id_unidad ?? (contextData.unidades[0]?.id_unidad ?? ''),
             stock_minimo: selected.stock_minimo ?? 0,
         });
         setEditErrors({});
@@ -988,7 +991,7 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
             {modalOpen && selected && (
 
                 <Modal isOpen={modalOpen} onClose={closeModal} title={`Detalles de ${activeTab === 'categorias' ? 'Categoría' : activeTab === 'productos' ? 'Producto' : ''}`}
-                    className={`h-[80dvh]`}
+                    className={`h-[80dvh] overflow-auto`}
                     contenido={
                         <>
 
@@ -1031,10 +1034,10 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
 
                                     {/* TAB: PRODUCTOS */}
                                     {activeTab === 'productos' && (
-                                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 animate-in fade-in slide-in-from-right-4 duration-400">
+                                        <div className="grid grid-cols-1 overflow-auto md:grid-cols-6 gap-4 animate-in fade-in slide-in-from-right-4 duration-400">
 
                                             {/* Card Principal de Producto */}
-                                            <div className="md:col-span-4 p-8 bg-white border border-blue-100 rounded-[2.5rem] shadow-sm flex flex-col justify-between relative overflow-hidden">
+                                            <div className="md:col-span-4 p-8 overflow-auto bg-white border border-blue-100 rounded-[2.5rem] shadow-sm flex flex-col justify-between relative overflow-hidden">
                                                 {/* Decoración de fondo sutil */}
                                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-full -mr-16 -mt-16" />
 
@@ -1062,6 +1065,20 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                                             <p className="text-slate-500 text-sm leading-relaxed italic">
                                                                 {selected.descripcion || 'Este producto no cuenta con especificaciones técnicas registradas en el sistema de inventario.'}
                                                             </p>
+                                                        </div>
+
+                                                        <div className="mt-4 grid grid-cols-2 gap-3">
+                                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 block mb-1">Unidad</span>
+                                                                <span className="text-sm font-bold text-slate-700">
+                                                                    {selected.nombre_unidad || selected.abreviatura || 'Sin unidad'}
+                                                                    {selected.abreviatura && selected.nombre_unidad && selected.abreviatura !== selected.nombre_unidad ? ` (${selected.abreviatura})` : ''}
+                                                                </span>
+                                                            </div>
+                                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 block mb-1">Categoría</span>
+                                                                <span className="text-sm font-bold text-slate-700">{selected.nombre_categoria || 'Sin categoría'}</span>
+                                                            </div>
                                                         </div>
                                                     </>
 
@@ -1206,6 +1223,16 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                 />
                             </div>
                             <div className="col-span-2">
+                                <Select
+                                    label="Unidad de medida *"
+                                    name="id_unidad"
+                                    value={editData.id_unidad}
+                                    onChange={handleEditChange}
+                                    options={contextData.unidades.map(u => ({ value: u.id_unidad, label: `${u.nombre_unidad}${u.abreviatura ? ` (${u.abreviatura})` : ''}` }))}
+                                    error={editErrors.id_unidad}
+                                />
+                            </div>
+                            <div className="col-span-2">
                                 <TextArea
                                     label="Descripción / Especificaciones técnicas"
                                     name="descripcion"
@@ -1231,6 +1258,9 @@ const Tabla = ({ data = [], alSeleccionar, loading: apiLoading, currentPage = 1,
                                     }
                                     if (!editData.id_categoria) {
                                         errs.id_categoria = "La categoría es obligatoria";
+                                    }
+                                    if (!editData.id_unidad) {
+                                        errs.id_unidad = "La unidad de medida es obligatoria";
                                     }
                                     if (editData.stock_minimo === undefined || editData.stock_minimo === null || String(editData.stock_minimo).trim() === '') {
                                         errs.stock_minimo = "El stock mínimo es obligatorio";

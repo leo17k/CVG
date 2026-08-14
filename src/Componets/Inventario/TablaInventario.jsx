@@ -350,6 +350,7 @@ const TablaInventario = ({ data = [], alSeleccionar, loading: apiLoading, curren
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Código</th>
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Producto</th>
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Categoría</th>
+                                        <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Unidad</th>
                                         <th className="px-6 py-4 backdrop-blur-sm bg-slate-50/80 whitespace-nowrap">Stock Actual</th>
                                         <th className="px-6 py-4 text-right backdrop-blur-sm bg-slate-50/80">Acciones</th>
                                     </>
@@ -398,6 +399,9 @@ const TablaInventario = ({ data = [], alSeleccionar, loading: apiLoading, curren
                                                 <td className="px-6 py-4 font-bold text-slate-500">{row.codigo_producto}</td>
                                                 <td className="px-6 py-4 font-semibold text-slate-700">{row.nombre_producto}</td>
                                                 <td className="px-6 py-4 text-slate-500">{row.nombre_categoria || row.id_categoria}</td>
+                                                <td className="px-6 py-4 text-slate-600 font-semibold">
+                                                    {row.abreviatura || row.nombre_unidad || '—'}
+                                                </td>
                                                 <td className="px-6 py-4 flex items-center justify-center">
                                                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${row.stock_actual <= row.stock_minimo ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                                                         {row.stock_actual}
@@ -467,7 +471,7 @@ const TablaInventario = ({ data = [], alSeleccionar, loading: apiLoading, curren
             {createModalOpen && (
                 <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setCreateData({}); setCreateErrors({}); }} title={`Nuevo/a en ${activeTab}`}
                     contenido={
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-4 ">
                             {activeTab === 'categorias' && (
                                 <>
                                     <Input label="Nombre Categoría" name="nombre_categoria" onChange={handleCreateChange} value={createData.nombre_categoria || ''} error={createErrors.nombre_categoria} />
