@@ -144,6 +144,13 @@ async function sincronizarCategoriasDesdeAccess(connectionMysql) {
     return { insertadas: resultado.affectedRows };
 }
 
+function buildProductoKey(codigo, categoria) {
+    const codigoNorm = String(codigo ?? '').trim();
+    const categoriaNorm = String(categoria ?? '').trim();
+    if (!codigoNorm && !categoriaNorm) return null;
+    return `${codigoNorm}::${categoriaNorm}`;
+}
+
 async function Migraciondeproductos_almacen_lote(codigosFiltrados = null, connectionMysql) {
     const [categoriasSql] = await connectionMysql.query('SELECT id_categoria, codigo FROM categorias');
     const mapaCategorias = new Map(
@@ -156,7 +163,10 @@ async function Migraciondeproductos_almacen_lote(codigosFiltrados = null, connec
     let rowsToProcess = rows;
     if (codigosFiltrados && Array.isArray(codigosFiltrados)) {
         const setFiltros = new Set(codigosFiltrados.map(c => String(c).trim()));
-        rowsToProcess = rows.filter(row => setFiltros.has(String(row.cod_repuesto || '').trim()));
+        rowsToProcess = rows.filter(row => {
+            const key = buildProductoKey(row.cod_repuesto, row.cod_tipo);
+            return key && setFiltros.has(key);
+        });
     }
 
     console.log(`🚀 Preparando inserción masiva de ${rowsToProcess.length} registros en productos_almacen...`);
@@ -279,31 +289,29 @@ async function MigracionStockAlmacen() {
     }
 }
 
-async function limpiarDuplicadosProductos(connectionMysql) {
+async function asegurarIndiceProductoCategoria(connectionMysql) {
     try {
         await connectionMysql.query(`
-            DELETE p1
-            FROM productos_almacen p1
-            INNER JOIN productos_almacen p2
-                ON p1.codigo_producto = p2.codigo_producto
-               AND p1.id_producto > p2.id_producto
-            WHERE p1.codigo_producto IS NOT NULL
-              AND TRIM(p1.codigo_producto) <> ''
+            ALTER TABLE productos_almacen
+            DROP INDEX uk_productos_codigo
         `);
-
-        try {
-            await connectionMysql.query(`
-                ALTER TABLE productos_almacen
-                ADD UNIQUE INDEX uk_productos_codigo (codigo_producto)
-            `);
-        } catch (err) {
-            const msg = String(err.message || err);
-            if (!msg.includes('Duplicate entry') && !msg.includes('already exists') && !msg.includes('1062')) {
-                console.warn('[SyncCondicional] No se pudo crear el índice único de productos:', msg);
-            }
-        }
     } catch (err) {
-        console.warn('[SyncCondicional] No se pudieron limpiar duplicados de productos:', err.message || err);
+        const msg = String(err.message || err);
+        if (!msg.includes('doesn\'t exist') && !msg.includes('not exist') && !msg.includes('1061')) {
+            // Ignorar si no existe el índice viejo
+        }
+    }
+
+    try {
+        await connectionMysql.query(`
+            ALTER TABLE productos_almacen
+            ADD UNIQUE INDEX uk_productos_codigo_categoria (codigo_producto, id_categoria)
+        `);
+    } catch (err) {
+        const msg = String(err.message || err);
+        if (!msg.includes('Duplicate entry') && !msg.includes('already exists') && !msg.includes('1062')) {
+            console.warn('[SyncCondicional] No se pudo crear el índice único de producto por categoría:', msg);
+        }
     }
 }
 
@@ -317,48 +325,63 @@ async function syncProductosYStockCondicional() {
     const connectionMysql = await pool.getConnection();
 
     try {
-        await limpiarDuplicadosProductos(connectionMysql);
+        await asegurarIndiceProductoCategoria(connectionMysql);
 
-        // 1. Obtener códigos de Access
-        const resAccess = await connection.query('SELECT cod_repuesto FROM InventarioRepuestos');
-        const codigosAccess = new Set(resAccess.map(r => String(r.cod_repuesto || '').trim()).filter(Boolean));
-        const totalAccess = codigosAccess.size;
+        // 1. Obtener claves compuestas de Access: codigo_producto + categoria
+        const resAccess = await connection.query('SELECT cod_repuesto, cod_tipo FROM InventarioRepuestos');
+        const accessKeys = new Set(
+            resAccess
+                .map(r => buildProductoKey(r.cod_repuesto, r.cod_tipo))
+                .filter(Boolean)
+        );
+        const totalAccess = accessKeys.size;
 
-        // 2. Obtener códigos de MySQL únicos
-        const [resMysql] = await connectionMysql.query('SELECT DISTINCT codigo_producto FROM productos_almacen WHERE codigo_producto IS NOT NULL AND TRIM(codigo_producto) <> ""');
-        const codigosMysql = new Set(resMysql.map(r => String(r.codigo_producto || '').trim()).filter(Boolean));
-        const totalMysql = codigosMysql.size;
+        // 2. Obtener claves compuestas de MySQL
+        const [resMysql] = await connectionMysql.query(
+            'SELECT codigo_producto, id_categoria FROM productos_almacen WHERE codigo_producto IS NOT NULL AND TRIM(codigo_producto) <> ""'
+        );
+        const mysqlKeys = new Set(
+            resMysql
+                .map(r => buildProductoKey(r.codigo_producto, r.id_categoria))
+                .filter(Boolean)
+        );
+        const totalMysql = mysqlKeys.size;
 
         console.log(`[SyncCondicional] Comparando productos -> Access: ${totalAccess} | MySQL: ${totalMysql}`);
 
         let syncAction = '';
 
-        // Identificar nuevos y eliminados
-        const nuevosCodigos = [...codigosAccess].filter(cod => !codigosMysql.has(cod));
-        const eliminadosEnAccess = [...codigosMysql].filter(cod => !codigosAccess.has(cod));
+        // Identificar nuevos y eliminados por clave compuesta
+        const nuevosKeys = [...accessKeys].filter(key => !mysqlKeys.has(key));
+        const eliminadosEnAccess = [...mysqlKeys].filter(key => !accessKeys.has(key));
 
-        if (nuevosCodigos.length > 0) {
-            syncAction = `Importando ${nuevosCodigos.length} nuevos productos`;
+        if (nuevosKeys.length > 0) {
+            syncAction = `Importando ${nuevosKeys.length} nuevos productos`;
             console.log(`[SyncCondicional] 🚀 Se detectaron nuevos productos en Access. Importando...`);
             await sincronizarCategoriasDesdeAccess(connectionMysql);
-            await Migraciondeproductos_almacen_lote(nuevosCodigos, connectionMysql);
+            await Migraciondeproductos_almacen_lote(nuevosKeys, connectionMysql);
             await MigracionStockAlmacen_interna(connectionMysql);
         } else if (totalAccess < totalMysql || eliminadosEnAccess.length > 0) {
             syncAction = `Reescribiendo productos (menos productos en Access, eliminados: ${eliminadosEnAccess.length})`;
             console.log(`[SyncCondicional] ⚠️ Menos productos en Access (MySQL tiene ${eliminadosEnAccess.length} huérfanos). Reescribiendo...`);
-            
+
             if (eliminadosEnAccess.length > 0) {
                 const chunkSize = 500;
                 for (let i = 0; i < eliminadosEnAccess.length; i += chunkSize) {
                     const chunk = eliminadosEnAccess.slice(i, i + chunkSize);
-                    await connectionMysql.query(
-                        'DELETE FROM productos_almacen WHERE codigo_producto IN (?)',
-                        [chunk]
-                    );
+                    for (const key of chunk) {
+                        const [codigo, categoria] = key.split('::');
+                        if (codigo && categoria) {
+                            await connectionMysql.query(
+                                'DELETE FROM productos_almacen WHERE codigo_producto = ? AND id_categoria = ?',
+                                [codigo, categoria]
+                            );
+                        }
+                    }
                 }
                 console.log(`[SyncCondicional] 🧹 Eliminados ${eliminadosEnAccess.length} productos sobrantes en MySQL.`);
             }
-            await Migraciondeproductos_almacen_lote([...codigosAccess], connectionMysql);
+            await Migraciondeproductos_almacen_lote([...accessKeys], connectionMysql);
             await MigracionStockAlmacen_interna(connectionMysql);
         } else {
             syncAction = 'Actualización estándar de stock';
